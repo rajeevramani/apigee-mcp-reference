@@ -17,7 +17,7 @@
       </Step>
       <Step>
         <Name>Quota-PerToolLimit</Name>
-        <Condition>request.verb != "OPTIONS"</Condition>
+        <Condition>(request.verb != "OPTIONS") and ((parsepayload.ParsePayload-MCP.operation = "tools/list") or (parsepayload.ParsePayload-MCP.operation ~~ "tools/call/.+"))</Condition>
       </Step>
     </Request>
     <Response/>

@@ -123,7 +123,9 @@ The products demonstrate two audiences:
 | `mcp-all-tools` | `documentation_search`, `api_catalogue_search` |
 | `mcp-documentation-only` | `documentation_search` |
 
-Both include `initialize`, `notifications/initialized`, `ping`, and `tools/list`.
+Both include `tools/list`. The API-product payload-operation model supports only `tools/list` and `tools/call/*`; MCP lifecycle methods such as `initialize`, `notifications/initialized`, and `ping` must not be added as product operations.
+
+The reference proxy therefore runs `Quota-PerToolLimit` only when `ParsePayload-MCP` derives `tools/list` or `tools/call/*`. Lifecycle requests are still API-key authenticated, but they do not attempt to resolve a quota configuration from an unsupported product operation.
 
 Create a developer and one app for each product. Keep consumer keys in your credential store; do not write them into this repository.
 

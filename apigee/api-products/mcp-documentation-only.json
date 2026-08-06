@@ -7,9 +7,6 @@
   "environments": ["eval"],
   "payloadOperationGroup": {
     "operationConfigs": [
-      {"apiSource": "test-mcp", "operations": [{"operation": "initialize"}], "quota": {"limit": "100", "interval": "1", "timeUnit": "minute"}},
-      {"apiSource": "test-mcp", "operations": [{"operation": "notifications/initialized"}], "quota": {"limit": "100", "interval": "1", "timeUnit": "minute"}},
-      {"apiSource": "test-mcp", "operations": [{"operation": "ping"}], "quota": {"limit": "100", "interval": "1", "timeUnit": "minute"}},
       {"apiSource": "test-mcp", "operations": [{"operation": "tools/list"}], "quota": {"limit": "100", "interval": "1", "timeUnit": "minute"}},
       {"apiSource": "test-mcp", "operations": [{"operation": "tools/call/documentation_search"}], "quota": {"limit": "100", "interval": "1", "timeUnit": "minute"}}
     ]

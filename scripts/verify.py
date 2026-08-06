@@ -10,6 +10,19 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 PLACEHOLDERS = ("YOUR_APIGEE_HOSTNAME", "YOUR_APIGEE_ORG")
+MCP_PRODUCT_OPERATION = re.compile(r"^tools/(?:list|call/[A-Za-z0-9._-]+)$")
+EXPECTED_MCP_PRODUCTS = {
+    "mcp-all-tools.json": {
+        "tools/list",
+        "tools/call/documentation_search",
+        "tools/call/api_catalogue_search",
+    },
+    "mcp-documentation-only.json": {
+        "tools/list",
+        "tools/call/documentation_search",
+    },
+}
+EXPECTED_PRODUCT_QUOTA = {"limit": "100", "interval": "1", "timeUnit": "minute"}
 FORBIDDEN = {}
 
 REQUIRED = (
@@ -87,8 +100,46 @@ def main() -> int:
                 ET.fromstring(text)
                 xml_count += 1
             elif suffix == ".json":
-                json.loads(text)
+                document = json.loads(text)
                 json_count += 1
+                if "api-products" in path.parts:
+                    configs = document.get("payloadOperationGroup", {}).get("operationConfigs", [])
+                    configured_operations = []
+                    for config in configs:
+                        if config.get("apiSource") != "test-mcp":
+                            fail(
+                                errors,
+                                f"unexpected API source in {path.relative_to(root)}: "
+                                f"{config.get('apiSource')!r}",
+                            )
+                        if config.get("quota") != EXPECTED_PRODUCT_QUOTA:
+                            fail(errors, f"unexpected product quota in {path.relative_to(root)}")
+                        if len(config.get("operations", [])) != 1:
+                            fail(
+                                errors,
+                                f"each quota entry must contain exactly one operation in "
+                                f"{path.relative_to(root)}",
+                            )
+                        for operation in config.get("operations", []):
+                            name = operation.get("operation", "")
+                            configured_operations.append(name)
+                            if not MCP_PRODUCT_OPERATION.fullmatch(name):
+                                fail(
+                                    errors,
+                                    f"unsupported MCP API-product operation {name!r} "
+                                    f"in {path.relative_to(root)}",
+                                )
+                    expected_operations = EXPECTED_MCP_PRODUCTS.get(path.name)
+                    if expected_operations is None:
+                        fail(errors, f"unexpected API product file: {path.relative_to(root)}")
+                    elif set(configured_operations) != expected_operations or len(
+                        configured_operations
+                    ) != len(expected_operations):
+                        fail(
+                            errors,
+                            f"incorrect entitlement matrix in {path.relative_to(root)}: "
+                            f"expected {sorted(expected_operations)}, got {sorted(configured_operations)}",
+                        )
             elif suffix == ".html":
                 StrictishHTMLParser().feed(text)
         except Exception as exc:
@@ -114,6 +165,24 @@ def main() -> int:
             if required not in browser_text:
                 fail(errors, f"browser client is missing {required}")
 
+    proxy_endpoint = root / "apigee" / "mcp-discovery-proxy" / "apiproxy" / "proxies" / "default.xml"
+    if proxy_endpoint.is_file():
+        proxy_root = ET.parse(proxy_endpoint).getroot()
+        quota_steps = [
+            step
+            for step in proxy_root.findall(".//Step")
+            if step.findtext("Name") == "Quota-PerToolLimit"
+        ]
+        if len(quota_steps) != 1:
+            fail(errors, "MCP proxy must contain exactly one Quota-PerToolLimit step")
+        else:
+            condition = quota_steps[0].findtext("Condition", "")
+            if "tools/list" not in condition or "tools/call/" not in condition:
+                fail(
+                    errors,
+                    "Quota-PerToolLimit must run only for supported tools/list and tools/call/* operations",
+                )
+
     if errors:
         for error in errors:
             print(f"FAIL: {error}", file=sys.stderr)
@@ -121,6 +190,9 @@ def main() -> int:
 
     print(f"PASS: validated {len(files)} text files ({xml_count} XML, {json_count} JSON)")
     print("PASS: forbidden tenant/customer identifiers absent")
+    print("PASS: API products contain only tools/list and tools/call/* operations")
+    print("PASS: API-product entitlement matrix, source, and quotas match the reference design")
+    print("PASS: API-product quota runs only for supported MCP product operations")
     print("PASS: OpenAPI source and embedded copies match")
     print("PASS: placeholder mode is correct")
     return 0
