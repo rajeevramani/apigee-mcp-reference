@@ -1,0 +1,18 @@
+<APIProxy revision="1" name="documentation-search-mock">
+  <DisplayName>Documentation Search Mock</DisplayName>
+  <Description>Mock backend for the documentation search MCP tool.</Description>
+  <BasePaths>/developer-intelligence/v1</BasePaths>
+  <Policies>
+    <Policy>AM-Disable-Path-Suffix</Policy>
+    <Policy>AM-Mock-Documentation-Response</Policy>
+  </Policies>
+  <ProxyEndpoints>
+    <ProxyEndpoint>default</ProxyEndpoint>
+  </ProxyEndpoints>
+  <Resources>
+    <Resource>oas://documentation-search-reverse-proxy.openapi.yaml</Resource>
+  </Resources>
+  <TargetEndpoints>
+    <TargetEndpoint>default</TargetEndpoint>
+  </TargetEndpoints>
+</APIProxy>

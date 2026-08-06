@@ -1,0 +1,141 @@
+openapi: 3.0.3
+info:
+  title: API Catalogue Search Reverse Proxy API
+  version: 0.1.0
+  description: Searches the API catalogue exposed through this Apigee reverse proxy.
+servers:
+  - url: https://YOUR_APIGEE_HOSTNAME/api-catalogue/v1
+    description: Sandbox Apigee reverse-proxy endpoint.
+paths:
+  /search:
+    post:
+      operationId: api_catalogue_search
+      summary: Search the API catalogue
+      description: Finds APIs by capability or natural-language query and returns concise catalogue metadata.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiCatalogueSearchRequest'
+            example:
+              query: payment APIs
+              limit: 5
+      responses:
+        '200':
+          description: Matching API catalogue entries ordered by relevance.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiCatalogueSearchResponse'
+              example:
+                apis:
+                  - api_name: payments
+                    display_name: Payments API
+                    summary: Initiate and track payments.
+                    version: v1
+                    lifecycle: active
+                    documentation_url: https://developer.example.com/apis/payments
+                returned: 1
+        '400':
+          description: The search request is invalid.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: The caller is not authenticated.
+        '403':
+          description: The caller is not permitted to discover catalogue entries.
+        '429':
+          description: The caller exceeded the applicable quota.
+        '500':
+          description: The catalogue search service failed.
+      security:
+        - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiCatalogueSearchRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          minLength: 2
+          maxLength: 300
+          description: Natural-language capability or API-name search query.
+          example: payment APIs
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 5
+          description: Maximum number of entitlement-filtered catalogue entries to return.
+    ApiCatalogueSearchResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - apis
+        - returned
+      properties:
+        apis:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/ApiCatalogueEntry'
+        returned:
+          type: integer
+          minimum: 0
+          maximum: 10
+    ApiCatalogueEntry:
+      type: object
+      additionalProperties: false
+      required:
+        - api_name
+        - display_name
+        - summary
+        - version
+        - lifecycle
+      properties:
+        api_name:
+          type: string
+          description: Stable API catalogue identifier.
+        display_name:
+          type: string
+          description: Human-readable API name.
+        summary:
+          type: string
+          maxLength: 500
+          description: Concise description of the API capability.
+        version:
+          type: string
+          description: Published API version.
+        lifecycle:
+          type: string
+          enum: [active, beta, deprecated]
+        documentation_url:
+          type: string
+          format: uri
+          description: Optional public developer-portal URL.
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string

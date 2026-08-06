@@ -1,0 +1,25 @@
+<APIProxy revision="1" name="test-mcp">
+    <DisplayName></DisplayName>
+    <Description></Description>
+    <CreatedAt>1785996578634</CreatedAt>
+    <LastModifiedAt>1785996650961</LastModifiedAt>
+    <BasePaths>/mcp</BasePaths>
+    <BasePaths>/.well-known/oauth-protected-resource/mcp</BasePaths>
+    <Policies>
+        <Policy>CORS-Allow</Policy>
+        <Policy>ParsePayload-MCP</Policy>
+        <Policy>VerifyAPIKey-1</Policy>
+        <Policy>Quota-PerToolLimit</Policy>
+    </Policies>
+    <ProxyEndpoints>
+        <ProxyEndpoint>default</ProxyEndpoint>
+        <ProxyEndpoint>oauth-prm-endpoint</ProxyEndpoint>
+    </ProxyEndpoints>
+    <Resources>
+        <Resource>oas://mcp-tools.openapi.yaml</Resource>
+    </Resources>
+    <TargetEndpoints>
+        <TargetEndpoint>default</TargetEndpoint>
+        <TargetEndpoint>oauth-prm-endpoint</TargetEndpoint>
+    </TargetEndpoints>
+</APIProxy>

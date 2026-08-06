@@ -1,0 +1,18 @@
+<APIProxy revision="1" name="api-catalogue-search-mock">
+  <DisplayName>API Catalogue Search Mock</DisplayName>
+  <Description>Mock backend for the API catalogue search MCP tool.</Description>
+  <BasePaths>/api-catalogue/v1</BasePaths>
+  <Policies>
+    <Policy>AM-Disable-Path-Suffix</Policy>
+    <Policy>AM-Mock-Api-Catalogue-Response</Policy>
+  </Policies>
+  <ProxyEndpoints>
+    <ProxyEndpoint>default</ProxyEndpoint>
+  </ProxyEndpoints>
+  <Resources>
+    <Resource>oas://api-catalogue-search-reverse-proxy.openapi.yaml</Resource>
+  </Resources>
+  <TargetEndpoints>
+    <TargetEndpoint>default</TargetEndpoint>
+  </TargetEndpoints>
+</APIProxy>

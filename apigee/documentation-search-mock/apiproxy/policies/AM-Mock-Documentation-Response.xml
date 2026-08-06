@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<AssignMessage name="AM-Mock-Documentation-Response">
+  <Set>
+    <Headers>
+      <Header name="X-Mock-Backend">mocktarget.apigee.net</Header>
+    </Headers>
+    <Payload contentType="application/json" variablePrefix="@" variableSuffix="#">{
+  "matches": [
+    {
+      "api_name": "payments",
+      "document_id": "payment-process-api-reference",
+      "section_id": "get-payment-process",
+      "heading": "Retrieve a payment process",
+      "section_path": "API reference / Processes / Retrieve process",
+      "excerpt": "Retrieves a payment process using its process identifier.",
+      "relevance": 0.94,
+      "portal_url": "https://developer.example.com/apis/payments/docs#get-payment-process"
+    }
+  ],
+  "returned": 1
+}</Payload>
+    <StatusCode>200</StatusCode>
+    <ReasonPhrase>OK</ReasonPhrase>
+  </Set>
+  <IgnoreUnresolvedVariables>true</IgnoreUnresolvedVariables>
+  <AssignTo createNew="false" transport="http" type="response"/>
+</AssignMessage>

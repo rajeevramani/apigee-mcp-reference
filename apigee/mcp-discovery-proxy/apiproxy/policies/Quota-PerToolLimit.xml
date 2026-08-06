@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Quota name="Quota-PerToolLimit">
+  <DisplayName>Per-Tool Quota</DisplayName>
+  <UseQuotaConfigInAPIProduct stepName="VerifyAPIKey-1"/>
+  <Distributed>true</Distributed>
+</Quota>
