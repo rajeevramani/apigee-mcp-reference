@@ -12,7 +12,7 @@ MCP client
   → REST backend
 ```
 
-The repository includes two mock REST APIs, their ordinary Apigee reverse proxies, aligned OpenAPI contracts, a generated MCP proxy bundle for inspection, API-product definitions for tool-level entitlement, and a browser-only MCP client.
+The repository includes two mock REST APIs, their ordinary Apigee reverse proxies, aligned OpenAPI contracts, a generated MCP proxy bundle for inspection, API-product definitions for tool-level entitlement, representative Markdown and OpenAPI content, and a browser-only MCP client. The documentation proxy uses Apigee `AssignMessage` policies and a null route, so no documentation backend is required.
 
 > This is an independent community reference implementation. It is not an official Google product, is not affiliated with or endorsed by Google, and does not provide an Apigee environment or public MCP endpoint.
 
@@ -26,6 +26,8 @@ The repository includes two mock REST APIs, their ordinary Apigee reverse proxie
 - A caller can be allowed to discover and invoke one tool while being denied another.
 - `ParsePayload → VerifyAPIKey → Quota` enables operation-aware access and quota enforcement.
 - A static browser client can exercise `initialize`, `tools/list`, and `tools/call` without storing a credential.
+- Apigee can simulate a documentation service that searches content, returns complete Markdown with a textual sequence diagram, and returns an OpenAPI YAML document.
+- The browser can safely render the Markdown and sequence flow, summarize OpenAPI operations, and retain the raw MCP response for inspection.
 
 ## Repository layout
 
@@ -36,7 +38,10 @@ apigee/
   documentation-search-mock/  Ordinary source reverse-proxy bundle
   mcp-discovery-proxy/         Generated MCP proxy bundle for inspection
 app/
+  content-renderer.js          Dependency-free Markdown, sequence, and OpenAPI renderer
   mcp-tool-browser.html        Static MCP lifecycle client
+samples/
+  payments/                    Customer-neutral Markdown and OpenAPI content
 specs/
   mcp-tools.openapi.yaml
   api-catalogue-search-reverse-proxy.openapi.yaml
@@ -47,6 +52,7 @@ docs/
 scripts/
   configure.py                 Render placeholders for your Apigee environment
   package.py                   Build importable proxy ZIP files
+  sync_mock_content.py         Synchronize readable samples into AssignMessage policies
   verify.py                    Validate the public or rendered artifact tree
 ```
 
@@ -109,7 +115,7 @@ cd build/configured
 python3 -m http.server 8080
 ```
 
-Open <http://localhost:8080/app/mcp-tool-browser.html>. Enter an API key created in your Apigee organisation. The key remains in browser memory and is sent only in the `x-api-key` header.
+Open <http://localhost:8080/app/mcp-tool-browser.html>. Enter an API key created in your Apigee organisation. The key remains in browser memory and is sent only in the `x-api-key` header. Calls to `documentation_section_get` render the returned Markdown and sequence flow; calls to `openapi_spec_get` render an operation summary. Both retain a **Raw response** view.
 
 Never commit credentials, place them in URLs, or embed them in the static file.
 
@@ -119,7 +125,7 @@ Never commit credentials, place them in URLs, or embed them in the static file.
 python3 scripts/verify.py
 ```
 
-The verifier checks customer-neutral placeholders, literal IPv4 addresses, XML and JSON syntax, duplicate OpenAPI copies, GET/query-parameter tool inputs, source-proxy OpenAPI validation, missing-query guards, tool-selection guidance, OpenAPI licensing and security declarations, browser HTML structure, and required repository files. Before publishing from a private source, pass an untracked blocklist with `--forbidden-file /path/to/private-identifiers.txt` to check exact tenant and customer identifiers without embedding them in the public verifier.
+The verifier checks customer-neutral placeholders and content, literal IPv4 addresses, XML and JSON syntax, synchronized mock payloads, duplicate OpenAPI copies, bounded MCP inputs, source-proxy OpenAPI validation, missing-query guards, tool-selection guidance, OpenAPI licensing and security declarations, browser HTML structure, and required repository files. Before publishing from a private source, pass an untracked blocklist with `--forbidden-file /path/to/private-identifiers.txt` to check exact tenant and customer identifiers without embedding them in the public verifier.
 
 ## Security and production use
 

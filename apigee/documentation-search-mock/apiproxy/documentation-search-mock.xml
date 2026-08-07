@@ -1,10 +1,11 @@
 <APIProxy revision="1" name="documentation-search-mock">
-  <DisplayName>Documentation Search Mock</DisplayName>
-  <Description>Mock backend for the documentation search MCP tool.</Description>
+  <DisplayName>Documentation Content Mock</DisplayName>
+  <Description>Apigee-generated search, Markdown section, and OpenAPI responses for documentation MCP tools.</Description>
   <BasePaths>/developer-intelligence/v1</BasePaths>
   <Policies>
-    <Policy>AM-Disable-Path-Suffix</Policy>
     <Policy>AM-Mock-Documentation-Response</Policy>
+    <Policy>AM-Mock-Documentation-Section</Policy>
+    <Policy>AM-Mock-OpenAPI-Spec</Policy>
     <Policy>OAS-Validate-Request</Policy>
     <Policy>RF-Missing-Query</Policy>
   </Policies>
@@ -14,7 +15,5 @@
   <Resources>
     <Resource>oas://documentation-search-reverse-proxy.openapi.yaml</Resource>
   </Resources>
-  <TargetEndpoints>
-    <TargetEndpoint>default</TargetEndpoint>
-  </TargetEndpoints>
+  <TargetEndpoints/>
 </APIProxy>

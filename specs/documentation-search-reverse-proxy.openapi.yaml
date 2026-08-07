@@ -96,6 +96,92 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /documentation/sections/{api_name}/{section_id}:
+    get:
+      tags:
+        - Developer documentation
+      operationId: documentation_section_get
+      summary: Retrieve a complete documentation section
+      description: >-
+        Returns complete raw Markdown, including code fences and textual diagram
+        definitions, for a section selected from documentation search results.
+      parameters:
+        - name: api_name
+          in: path
+          required: true
+          description: Stable API catalogue identifier.
+          example: payments
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+            pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+        - name: section_id
+          in: path
+          required: true
+          description: Stable section identifier returned by documentation_search.
+          example: payment-initiation
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
+            pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+      responses:
+        '200':
+          description: Complete Markdown source for the selected section.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentationSectionResponse'
+        '404':
+          description: The API or section does not exist.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          description: The documentation service failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /documentation/specs/{api_name}:
+    get:
+      tags:
+        - Developer documentation
+      operationId: openapi_spec_get
+      summary: Retrieve an API OpenAPI specification
+      description: Returns the complete example OpenAPI YAML for the selected API.
+      parameters:
+        - name: api_name
+          in: path
+          required: true
+          description: Stable API catalogue identifier.
+          example: payments
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+            pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+      responses:
+        '200':
+          description: OpenAPI YAML for the selected API.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenApiSpecResponse'
+        '404':
+          description: The API specification does not exist.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          description: The documentation service failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
 components:
   schemas:
     DocumentationSearchResponse:
@@ -154,6 +240,43 @@ components:
           type: string
           format: uri
           description: Optional developer-portal URL; never a storage or internal repository URL.
+    DocumentationSectionResponse:
+      type: object
+      additionalProperties: false
+      required: [api_name, document_id, section_id, title, content_type, content]
+      properties:
+        api_name:
+          type: string
+        document_id:
+          type: string
+        section_id:
+          type: string
+        title:
+          type: string
+        content_type:
+          type: string
+          enum: [text/markdown]
+        content:
+          type: string
+          maxLength: 30000
+          description: Raw Markdown with complete code and textual diagram blocks preserved.
+    OpenApiSpecResponse:
+      type: object
+      additionalProperties: false
+      required: [api_name, format, content_type, content]
+      properties:
+        api_name:
+          type: string
+        format:
+          type: string
+          enum: [openapi-3.0-yaml]
+        content_type:
+          type: string
+          enum: [application/yaml]
+        content:
+          type: string
+          maxLength: 100000
+          description: Complete OpenAPI YAML source for the selected API.
     Problem:
       type: object
       additionalProperties: true

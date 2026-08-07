@@ -102,13 +102,32 @@ ParsePayload
 
 It then assigned exact payload operations to two products. The reproduced behaviour was:
 
-- the all-tools key discovered and invoked both tools;
-- the documentation-only key discovered only `documentation_search`;
-- the documentation-only key invoked `documentation_search` successfully;
+- the all-tools key discovered and invoked all catalogue and documentation tools;
+- the documentation-only key discovered `documentation_search`, `documentation_section_get`, and `openapi_spec_get`;
+- the documentation-only key invoked all three documentation tools successfully;
 - a direct attempt to invoke `api_catalogue_search` with that key was rejected;
 - a request without a key was rejected.
 
 An implementation detail worth preserving: each `payloadOperationGroup.operationConfigs` entry contained exactly one payload operation. Combining several operations into one entry was rejected by the API.
+
+## Apigee can simulate a content service without a backend
+
+The expanded documentation proxy has a null route and creates operation-specific responses with `AssignMessage`. It demonstrates three distinct contracts without requiring a storage service, search index, or application runtime:
+
+```text
+documentation_search
+  → bounded matches and stable section identifiers
+
+documentation_section_get
+  → complete raw Markdown with a textual sequence diagram
+
+openapi_spec_get
+  → complete OpenAPI YAML in a structured response envelope
+```
+
+Readable source files live under `samples/`. `scripts/sync_mock_content.py` embeds those exact files into the Apigee policy payloads, and the tests detect any drift. This is useful for contract and client-rendering validation, but it does not demonstrate storage access, indexing, update detection, or production source authorization.
+
+The browser treats the raw content as the tool contract. It generates safe HTML from a deliberately small Markdown subset, converts Mermaid sequence statements into a dependency-free sequence view, summarizes OpenAPI paths and operations, and always retains the raw MCP response. A production portal should use its approved Markdown, diagram, YAML, and HTML-sanitisation libraries rather than treating this small renderer as a complete publishing engine.
 
 ## Test the layers in order
 

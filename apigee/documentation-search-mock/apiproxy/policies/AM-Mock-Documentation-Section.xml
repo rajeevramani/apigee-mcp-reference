@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<AssignMessage name="AM-Mock-Documentation-Section" continueOnError="false" enabled="true">
+  <Set>
+    <StatusCode>200</StatusCode>
+    <ReasonPhrase>OK</ReasonPhrase>
+    <Headers>
+      <Header name="Content-Type">application/json</Header>
+    </Headers>
+    <Payload contentType="application/json" variablePrefix="@" variableSuffix="#">{
+  "api_name": "payments",
+  "document_id": "payments-guide",
+  "section_id": "payment-initiation",
+  "title": "Payment initiation flow",
+  "content_type": "text/markdown",
+  "content": "---\napi_id: payments\napi_version: v1\ndocument_id: payments-guide\nsection_id: payment-initiation\ntitle: Payment initiation flow\ncontent_type: text/markdown\n---\n# Payment initiation flow\n\nUse the Payments API to create a payment and retrieve its latest status. The caller supplies an idempotency key so retrying a timed-out request does not create a duplicate payment.\n\n## Sequence\n\n```mermaid\nsequenceDiagram\n    participant Client\n    participant Payments API\n    participant Ledger\n    Client-&gt;&gt;Payments API: POST /payments\n    Payments API-&gt;&gt;Ledger: Validate and reserve funds\n    Ledger--&gt;&gt;Payments API: Reservation confirmed\n    Payments API--&gt;&gt;Client: 202 Accepted with payment ID\n    Client-&gt;&gt;Payments API: GET /payments/{payment_id}\n    Payments API--&gt;&gt;Client: Current payment status\n```\n\n## Create a payment\n\nSend `POST /payments` with an `Idempotency-Key` header and a JSON request containing the amount, currency and destination account.\n\n```json\n{\n  \"amount\": \"125.00\",\n  \"currency\": \"USD\",\n  \"destination_account\": \"example-account\"\n}\n```\n\nA successful request returns `202 Accepted`. Use the returned `payment_id` to retrieve status. A rejected request returns a problem-details response with a stable error type.\n"
+}</Payload>
+  </Set>
+  <IgnoreUnresolvedVariables>true</IgnoreUnresolvedVariables>
+  <AssignTo createNew="true" transport="http" type="response"/>
+</AssignMessage>

@@ -15,16 +15,21 @@ EXPECTED_MCP_PRODUCTS = {
     "mcp-all-tools.json": {
         "tools/list",
         "tools/call/documentation_search",
+        "tools/call/documentation_section_get",
+        "tools/call/openapi_spec_get",
         "tools/call/api_catalogue_search",
     },
     "mcp-documentation-only.json": {
         "tools/list",
         "tools/call/documentation_search",
+        "tools/call/documentation_section_get",
+        "tools/call/openapi_spec_get",
     },
 }
 EXPECTED_PRODUCT_QUOTA = {"limit": "100", "interval": "1", "timeUnit": "minute"}
 IPV4_OCTET = r"(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)"
 GENERIC_FORBIDDEN = {
+    "customer-specific organization": re.compile(r"\bA" + r"NZ\b", re.IGNORECASE),
     "literal IPv4 address": re.compile(
         rf"(?<![A-Za-z0-9_.]){IPV4_OCTET}(?:\.{IPV4_OCTET}){{3}}(?![A-Za-z0-9_.])"
     ),
@@ -37,6 +42,9 @@ REQUIRED = (
     "SECURITY.md",
     "CONTRIBUTING.md",
     "app/mcp-tool-browser.html",
+    "app/content-renderer.js",
+    "samples/payments/payment-initiation.md",
+    "samples/payments/openapi.yaml",
     "specs/mcp-tools.openapi.yaml",
     "specs/documentation-search-reverse-proxy.openapi.yaml",
     "specs/api-catalogue-search-reverse-proxy.openapi.yaml",
@@ -95,6 +103,48 @@ EXPECTED_OPERATIONS = (
             },
         },
         "schemas": ("DocumentationSearchResponse", "DocumentationMatch", "Problem"),
+    },
+    {
+        "source_path": "/developer-intelligence/v1/documentation/sections/{api_name}/{section_id}",
+        "reverse_spec": "documentation-search-reverse-proxy.openapi.yaml",
+        "reverse_path": "/documentation/sections/{api_name}/{section_id}",
+        "operation_id": "documentation_section_get",
+        "parameters": {
+            "api_name": {
+                "in": "path",
+                "required": "true",
+                "type": "string",
+                "minLength": "1",
+                "maxLength": "100",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            },
+            "section_id": {
+                "in": "path",
+                "required": "true",
+                "type": "string",
+                "minLength": "1",
+                "maxLength": "120",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            },
+        },
+        "schemas": ("DocumentationSectionResponse", "Problem"),
+    },
+    {
+        "source_path": "/developer-intelligence/v1/documentation/specs/{api_name}",
+        "reverse_spec": "documentation-search-reverse-proxy.openapi.yaml",
+        "reverse_path": "/documentation/specs/{api_name}",
+        "operation_id": "openapi_spec_get",
+        "parameters": {
+            "api_name": {
+                "in": "path",
+                "required": "true",
+                "type": "string",
+                "minLength": "1",
+                "maxLength": "100",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            },
+        },
+        "schemas": ("OpenApiSpecResponse", "Problem"),
     },
     {
         "source_path": "/api-catalogue/v1/search",
@@ -471,17 +521,33 @@ def main() -> int:
                 f"{apiproxy_dir.relative_to(root)}: {unreferenced_policies}",
             )
 
-    source_proxy_methods = (
+    source_proxy_operations = (
         (
             root / "apigee" / "documentation-search-mock" / "apiproxy" / "proxies" / "default.xml",
             "/documentation/search",
+            ["RF-Missing-Query", "OAS-Validate-Request", "AM-Mock-Documentation-Response"],
+            True,
+        ),
+        (
+            root / "apigee" / "documentation-search-mock" / "apiproxy" / "proxies" / "default.xml",
+            "/documentation/sections/*/*",
+            ["OAS-Validate-Request", "AM-Mock-Documentation-Section"],
+            False,
+        ),
+        (
+            root / "apigee" / "documentation-search-mock" / "apiproxy" / "proxies" / "default.xml",
+            "/documentation/specs/*",
+            ["OAS-Validate-Request", "AM-Mock-OpenAPI-Spec"],
+            False,
         ),
         (
             root / "apigee" / "api-catalogue-search-mock" / "apiproxy" / "proxies" / "default.xml",
             "/search",
+            ["RF-Missing-Query", "OAS-Validate-Request", "AM-Disable-Path-Suffix"],
+            True,
         ),
     )
-    for proxy_path, path_suffix in source_proxy_methods:
+    for proxy_path, path_suffix, expected_steps, requires_query in source_proxy_operations:
         if proxy_path.is_file():
             proxy_root = ET.parse(proxy_path).getroot()
             expected = f'(proxy.pathsuffix MatchesPath "{path_suffix}") and (request.verb = "GET")'
@@ -493,15 +559,16 @@ def main() -> int:
                 continue
             steps = matching_flows[0].findall("./Request/Step")
             step_names = [step.findtext("Name") for step in steps]
-            expected_steps = ["RF-Missing-Query", "OAS-Validate-Request", "AM-Disable-Path-Suffix"]
             if step_names != expected_steps:
                 fail(
                     errors,
                     f"source proxy request policy order differs for {path_suffix}: "
                     f"expected {expected_steps}, got {step_names}",
                 )
-            if not steps or steps[0].findtext("Condition") != (
-                '(request.queryparam.query = null) or (request.queryparam.query = "")'
+            if requires_query and (
+                not steps
+                or steps[0].findtext("Condition")
+                != '(request.queryparam.query = null) or (request.queryparam.query = "")'
             ):
                 fail(errors, f"source proxy has an incorrect missing-query condition for {path_suffix}")
 
@@ -578,9 +645,40 @@ def main() -> int:
     browser = root / "app" / "mcp-tool-browser.html"
     if browser.is_file():
         browser_text = browser.read_text(encoding="utf-8")
-        for required in ("initialize", "tools/list", "tools/call", "x-api-key"):
+        for required in ("initialize", "tools/list", "tools/call", "x-api-key", "content-renderer.js", "Raw response"):
             if required not in browser_text:
                 fail(errors, f"browser client is missing {required}")
+
+    mock_content = (
+        (
+            root / "apigee" / "documentation-search-mock" / "apiproxy" / "policies" / "AM-Mock-Documentation-Section.xml",
+            root / "samples" / "payments" / "payment-initiation.md",
+            "text/markdown",
+        ),
+        (
+            root / "apigee" / "documentation-search-mock" / "apiproxy" / "policies" / "AM-Mock-OpenAPI-Spec.xml",
+            root / "samples" / "payments" / "openapi.yaml",
+            "application/yaml",
+        ),
+    )
+    for policy_path, sample_path, expected_content_type in mock_content:
+        if not sample_path.is_file():
+            if not args.configured:
+                fail(errors, f"missing readable mock source: {sample_path.relative_to(root)}")
+            continue
+        if not policy_path.is_file():
+            fail(errors, f"missing generated mock policy: {policy_path.relative_to(root)}")
+            continue
+        payload = ET.parse(policy_path).getroot().find("./Set/Payload")
+        try:
+            document = json.loads(payload.text if payload is not None else "")
+        except json.JSONDecodeError:
+            fail(errors, f"generated mock payload is not JSON: {policy_path.relative_to(root)}")
+            continue
+        if document.get("content_type") != expected_content_type:
+            fail(errors, f"generated mock content type differs: {policy_path.relative_to(root)}")
+        if document.get("content") != sample_path.read_text(encoding="utf-8"):
+            fail(errors, f"generated mock payload is stale: {policy_path.relative_to(root)}")
 
     proxy_endpoint = root / "apigee" / "mcp-discovery-proxy" / "apiproxy" / "proxies" / "default.xml"
     if proxy_endpoint.is_file():

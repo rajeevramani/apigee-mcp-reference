@@ -12,12 +12,26 @@
           <Condition>(request.queryparam.query = null) or (request.queryparam.query = "")</Condition>
         </Step>
         <Step><Name>OAS-Validate-Request</Name></Step>
-        <Step><Name>AM-Disable-Path-Suffix</Name></Step>
-      </Request>
-      <Response>
         <Step><Name>AM-Mock-Documentation-Response</Name></Step>
-      </Response>
+      </Request>
+      <Response/>
       <Condition>(proxy.pathsuffix MatchesPath "/documentation/search") and (request.verb = "GET")</Condition>
+    </Flow>
+    <Flow name="documentation-section-get">
+      <Request>
+        <Step><Name>OAS-Validate-Request</Name></Step>
+        <Step><Name>AM-Mock-Documentation-Section</Name></Step>
+      </Request>
+      <Response/>
+      <Condition>(proxy.pathsuffix MatchesPath "/documentation/sections/*/*") and (request.verb = "GET")</Condition>
+    </Flow>
+    <Flow name="openapi-spec-get">
+      <Request>
+        <Step><Name>OAS-Validate-Request</Name></Step>
+        <Step><Name>AM-Mock-OpenAPI-Spec</Name></Step>
+      </Request>
+      <Response/>
+      <Condition>(proxy.pathsuffix MatchesPath "/documentation/specs/*") and (request.verb = "GET")</Condition>
     </Flow>
   </Flows>
   <PostFlow name="PostFlow">
@@ -27,7 +41,5 @@
   <HTTPProxyConnection>
     <BasePath>/developer-intelligence/v1</BasePath>
   </HTTPProxyConnection>
-  <RouteRule name="default">
-    <TargetEndpoint>default</TargetEndpoint>
-  </RouteRule>
+  <RouteRule name="no-target"/>
 </ProxyEndpoint>

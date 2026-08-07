@@ -126,6 +126,29 @@
     .call-actions button { min-height: 40px; padding: 8px 16px; }
     .call-state { color: var(--muted); font-size: 12px; }
     .tool-result { margin-top: 0; }
+    .result-preview {
+      margin-top: 12px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--white);
+    }
+    .result-preview h1, .result-preview h2, .result-preview h3 { color: var(--navy); }
+    .result-preview code { padding: 2px 5px; border-radius: 3px; background: #eef2f6; }
+    .result-preview pre code { padding: 0; background: transparent; }
+    .sequence-diagram { margin: 18px 0; padding: 16px; border: 1px solid #b8dbe3; border-radius: 6px; background: #f2fbfc; }
+    .sequence-diagram figcaption { margin-bottom: 12px; color: var(--navy); font-weight: 700; }
+    .sequence-actors { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .sequence-actor { padding: 5px 9px; border-radius: 999px; color: var(--navy); background: #d8f1f3; font-size: 12px; font-weight: 650; }
+    .sequence-diagram ol { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .sequence-step { display: grid; grid-template-columns: 24px minmax(80px, auto) 24px minmax(80px, auto) 1fr; align-items: center; gap: 8px; padding: 8px; border-radius: 4px; background: var(--white); }
+    .sequence-number { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 50%; color: var(--white); background: var(--blue); font-size: 11px; }
+    .sequence-arrow { color: var(--teal); text-align: center; font-size: 18px; }
+    .sequence-message { color: var(--muted); }
+    .oas-summary ul { display: grid; gap: 8px; padding: 0; list-style: none; }
+    .oas-operation { display: grid; grid-template-columns: 62px minmax(180px, 1fr) 1fr; gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 5px; }
+    .oas-method { padding: 3px 7px; border-radius: 4px; color: var(--white); background: var(--blue); text-align: center; font-size: 11px; font-weight: 750; }
+    .oas-operation > code:last-child { grid-column: 2 / -1; color: var(--muted); background: transparent; }
     pre {
       max-height: 340px;
       overflow: auto;
@@ -187,6 +210,7 @@
     </section>
   </main>
 
+  <script src="content-renderer.js"></script>
   <script>
     const endpoint = document.querySelector('#endpoint');
     const apiKey = document.querySelector('#apiKey');
@@ -286,6 +310,26 @@
       return JSON.stringify(result, null, 2);
     }
 
+    function parseToolDocument(result) {
+      const text = result?.content?.length === 1 ? result.content[0]?.text : null;
+      if (!text) return null;
+      try { return JSON.parse(text); } catch (_) { return null; }
+    }
+
+    function renderRichResult(result, preview, rawOutput, rawDetails) {
+      const documentResult = parseToolDocument(result);
+      const kind = ContentRenderer.detectContentKind(documentResult);
+      rawOutput.textContent = formatResult(result);
+      rawDetails.open = !kind;
+      preview.hidden = !kind;
+      preview.replaceChildren();
+      if (kind === 'markdown') {
+        preview.innerHTML = ContentRenderer.renderMarkdown(documentResult.content);
+      } else if (kind === 'openapi') {
+        preview.innerHTML = ContentRenderer.renderOpenApi(documentResult.content);
+      }
+    }
+
     function renderTools(tools) {
       count.textContent = `${tools.length} tool${tools.length === 1 ? '' : 's'}`;
       if (!tools.length) {
@@ -330,9 +374,18 @@
         callState.className = 'call-state';
         actions.append(callButton, callState);
 
-        const resultOutput = document.createElement('pre');
+        const resultOutput = document.createElement('div');
         resultOutput.className = 'tool-result';
         resultOutput.hidden = true;
+        const resultPreview = document.createElement('div');
+        resultPreview.className = 'result-preview';
+        resultPreview.hidden = true;
+        const rawDetails = document.createElement('details');
+        const rawSummary = document.createElement('summary');
+        rawSummary.textContent = 'Raw response';
+        const rawOutput = document.createElement('pre');
+        rawDetails.append(rawSummary, rawOutput);
+        resultOutput.append(resultPreview, rawDetails);
 
         callButton.addEventListener('click', async () => {
           let argumentsValue;
@@ -348,11 +401,13 @@
           resultOutput.hidden = true;
           try {
             const result = await rpc('tools/call', { name: tool.name, arguments: argumentsValue });
-            resultOutput.textContent = formatResult(result);
+            renderRichResult(result, resultPreview, rawOutput, rawDetails);
             resultOutput.hidden = false;
             callState.textContent = result?.isError ? 'Tool returned an error' : 'Completed';
           } catch (error) {
-            resultOutput.textContent = error.message;
+            resultPreview.hidden = true;
+            rawOutput.textContent = error.message;
+            rawDetails.open = true;
             resultOutput.hidden = false;
             callState.textContent = 'Call failed';
           } finally {

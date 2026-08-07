@@ -1,7 +1,7 @@
 {
   "name": "mcp-all-tools",
   "displayName": "MCP All Tools",
-  "description": "Access to documentation and API catalogue search tools.",
+  "description": "Access to documentation content and API catalogue tools.",
   "approvalType": "auto",
   "attributes": [{"name": "access", "value": "internal"}],
   "environments": ["eval"],
@@ -9,6 +9,8 @@
     "operationConfigs": [
       {"apiSource": "test-mcp", "operations": [{"operation": "tools/list"}], "quota": {"limit": "100", "interval": "1", "timeUnit": "minute"}},
       {"apiSource": "test-mcp", "operations": [{"operation": "tools/call/documentation_search"}], "quota": {"limit": "100", "interval": "1", "timeUnit": "minute"}},
+      {"apiSource": "test-mcp", "operations": [{"operation": "tools/call/documentation_section_get"}], "quota": {"limit": "100", "interval": "1", "timeUnit": "minute"}},
+      {"apiSource": "test-mcp", "operations": [{"operation": "tools/call/openapi_spec_get"}], "quota": {"limit": "100", "interval": "1", "timeUnit": "minute"}},
       {"apiSource": "test-mcp", "operations": [{"operation": "tools/call/api_catalogue_search"}], "quota": {"limit": "100", "interval": "1", "timeUnit": "minute"}}
     ]
   }

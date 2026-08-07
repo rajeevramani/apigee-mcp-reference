@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<AssignMessage name="AM-Mock-OpenAPI-Spec" continueOnError="false" enabled="true">
+  <Set>
+    <StatusCode>200</StatusCode>
+    <ReasonPhrase>OK</ReasonPhrase>
+    <Headers>
+      <Header name="Content-Type">application/json</Header>
+    </Headers>
+    <Payload contentType="application/json" variablePrefix="@" variableSuffix="#">{
+  "api_name": "payments",
+  "format": "openapi-3.0-yaml",
+  "content_type": "application/yaml",
+  "content": "openapi: 3.0.3\ninfo:\n  title: Example Payments API\n  version: 1.0.0\n  license:\n    name: Apache License 2.0\n    url: https://www.apache.org/licenses/LICENSE-2.0.html\n  description: Customer-neutral API contract served as documentation content by the mock.\nservers:\n  - url: https://api.example.com/payments/v1\nsecurity: []\npaths:\n  /payments:\n    post:\n      operationId: create_payment\n      summary: Create a payment\n      parameters:\n        - name: Idempotency-Key\n          in: header\n          required: true\n          schema:\n            type: string\n            minLength: 8\n            maxLength: 100\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema:\n              $ref: '#/components/schemas/CreatePaymentRequest'\n      responses:\n        '202':\n          description: Payment accepted for processing.\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/Payment'\n  /payments/{payment_id}:\n    get:\n      operationId: get_payment\n      summary: Retrieve payment status\n      parameters:\n        - name: payment_id\n          in: path\n          required: true\n          schema:\n            type: string\n      responses:\n        '200':\n          description: Current payment state.\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/Payment'\ncomponents:\n  schemas:\n    CreatePaymentRequest:\n      type: object\n      additionalProperties: false\n      required: [amount, currency, destination_account]\n      properties:\n        amount:\n          type: string\n          pattern: '^\\d+\\.\\d{2}$'\n        currency:\n          type: string\n          pattern: '^[A-Z]{3}$'\n        destination_account:\n          type: string\n    Payment:\n      type: object\n      additionalProperties: false\n      required: [payment_id, status]\n      properties:\n        payment_id:\n          type: string\n        status:\n          type: string\n          enum: [accepted, processing, completed, rejected]\n"
+}</Payload>
+  </Set>
+  <IgnoreUnresolvedVariables>true</IgnoreUnresolvedVariables>
+  <AssignTo createNew="true" transport="http" type="response"/>
+</AssignMessage>

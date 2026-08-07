@@ -40,10 +40,12 @@ dist/documentation-search-mock.zip
 dist/api-catalogue-search-mock.zip
 ```
 
-The mock proxies return controlled JSON responses. Call each REST endpoint directly before involving MCP:
+The mock proxies return controlled JSON responses. The documentation proxy uses `AssignMessage` policies and a null route; it does not call an external backend. Call every REST endpoint directly before involving MCP:
 
 ```text
 GET https://YOUR_HOST/developer-intelligence/v1/documentation/search?query=payments&limit=1
+GET https://YOUR_HOST/developer-intelligence/v1/documentation/sections/payments/payment-initiation
+GET https://YOUR_HOST/developer-intelligence/v1/documentation/specs/payments
 GET https://YOUR_HOST/api-catalogue/v1/search?query=payments&limit=1
 ```
 
@@ -57,7 +59,7 @@ Confirm that API Hub shows:
 
 - both deployed source proxies;
 - one OpenAPI specification for each;
-- `documentation_search` and `api_catalogue_search` operations;
+- `documentation_search`, `documentation_section_get`, `openapi_spec_get`, and `api_catalogue_search` operations;
 - the correct deployment/environment association.
 
 If a proxy appears without a specification or operation, do not continue. Fix the proxy bundle or wait for metadata ingestion.
@@ -83,15 +85,23 @@ MCP source:       /developer-intelligence/v1/documentation/search
 Proxy base path:  /developer-intelligence/v1
 Reverse OAS path: /documentation/search
 operationId:      documentation_search
+
+MCP source:       /developer-intelligence/v1/documentation/sections/{api_name}/{section_id}
+Reverse OAS path: /documentation/sections/{api_name}/{section_id}
+operationId:      documentation_section_get
+
+MCP source:       /developer-intelligence/v1/documentation/specs/{api_name}
+Reverse OAS path: /documentation/specs/{api_name}
+operationId:      openapi_spec_get
 ```
 
-The effective method, path, operation ID, query parameters, successful response schema, and hostname assumptions must remain aligned. Both contracts model these read-only searches as `GET` operations with bounded query parameters. In the reproduced environment, that produced flat MCP inputs; component-referenced and inline request bodies both produced wrappers.
+The effective method, path, operation ID, parameters, successful response schema, and hostname assumptions must remain aligned. The contracts model the read-only operations as `GET`: searches use bounded query parameters and retrieval uses bounded path parameters. In the reproduced environment, query parameters produced flat MCP inputs; component-referenced and inline request bodies both produced wrappers. Always inspect the generated `tools/list.inputSchema` for path parameters rather than assuming how a product release will flatten them.
 
 The MCP source contract also documents `401`, `403`, and `429` responses that can be emitted by the authenticated, product-governed MCP edge. The unauthenticated source-mock contracts omit those edge-only responses and document only the errors their own proxy path can return.
 
 Use this GET pattern only when inputs are bounded and non-sensitive. Query strings can appear in client history, gateway logs, caches, and observability data. Keep sensitive or larger search inputs in a `POST` body and accept the generated wrapper, or design a separate source operation for the MCP tool.
 
-Each source proxy runs `RF-Missing-Query` and then `OAS-Validate-Request` before returning the mock response. The explicit guard is required because the tested OAS validation runtime did not reject an absent required query parameter by itself. OAS validation enforces the remaining declared parameter constraints and rejects unspecified query parameters.
+The search flows run `RF-Missing-Query` and then `OAS-Validate-Request` before returning the mock response. The explicit guard is required because the tested OAS validation runtime did not reject an absent required query parameter by itself. Retrieval flows run OAS validation before their operation-specific `AssignMessage` response. The documentation proxy has a null route, demonstrating that Apigee itself can simulate the content service.
 
 The checked-in generated bundle under `apigee/mcp-discovery-proxy/` is an implementation reference. Compare generated policies and targets with it, but use the current product workflow unless current official documentation explicitly supports your chosen import path.
 
@@ -128,8 +138,8 @@ The products demonstrate two audiences:
 
 | Product | Visible and callable tools |
 |---|---|
-| `mcp-all-tools` | `documentation_search`, `api_catalogue_search` |
-| `mcp-documentation-only` | `documentation_search` |
+| `mcp-all-tools` | `documentation_search`, `documentation_section_get`, `openapi_spec_get`, `api_catalogue_search` |
+| `mcp-documentation-only` | `documentation_search`, `documentation_section_get`, `openapi_spec_get` |
 
 Both include `tools/list`. The API-product payload-operation model supports only `tools/list` and `tools/call/*`; MCP lifecycle methods such as `initialize`, `notifications/initialized`, and `ping` must not be added as product operations.
 
@@ -144,14 +154,16 @@ Test in this order:
 1. Direct source REST operation.
 2. `initialize` without a key — expect rejection once API-key verification is active.
 3. `initialize` with an allowed key.
-4. `tools/list` with the all-tools key — expect two tools.
-5. `tools/list` with the documentation-only key — expect one tool.
+4. `tools/list` with the all-tools key — expect four tools.
+5. `tools/list` with the documentation-only key — expect three documentation tools.
 6. `tools/call/documentation_search` with the documentation-only key — expect success.
-7. Direct `tools/call/api_catalogue_search` with the documentation-only key — expect denial.
-8. Both tool calls with the all-tools key — expect success.
-9. Omit `query`, send a legacy body wrapper, add an unspecified argument, and exceed `limit` — expect rejection.
+7. Call `documentation_section_get` with `api_name=payments` and `section_id=payment-initiation` — expect complete Markdown with a Mermaid source block.
+8. Call `openapi_spec_get` with `api_name=payments` — expect complete OpenAPI YAML.
+9. Direct `tools/call/api_catalogue_search` with the documentation-only key — expect denial.
+10. Call all four tools with the all-tools key — expect success.
+11. Omit `query`, send a legacy body wrapper, add an unspecified argument, and exceed `limit` — expect rejection.
 
-Inspect the `inputSchema` returned by `tools/list`. Confirm that both tools expose `query` and `limit` directly, with `api_name` also available for `documentation_search`, and that `query` is required. The schema returned by `tools/list` is the contract the MCP client actually sees. If a wrapper appears, treat that generated schema as the immediate client contract and investigate the source OpenAPI and Apigee/API Hub transformation before release.
+Inspect the `inputSchema` returned by `tools/list`. Confirm that searches expose their bounded arguments and that the retrieval tools expose the API and section identifiers required by their OpenAPI operations. The schema returned by `tools/list` is the contract the MCP client actually sees. If a wrapper appears, treat that generated schema as the immediate client contract and investigate the source OpenAPI and Apigee/API Hub transformation before release.
 
 ## 9. Use the browser client
 
@@ -162,7 +174,7 @@ cd build/configured
 python3 -m http.server 8080
 ```
 
-Open <http://localhost:8080/app/mcp-tool-browser.html>, enter the API key, and connect. The endpoint must support CORS, preflight, the negotiated MCP protocol header, and any session header returned by the server.
+Open <http://localhost:8080/app/mcp-tool-browser.html>, enter the API key, and connect. The endpoint must support CORS, preflight, the negotiated MCP protocol header, and any session header returned by the server. The browser renders recognized Markdown and OpenAPI content while preserving a raw-response view.
 
 ## Sources
 

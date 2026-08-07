@@ -6,7 +6,7 @@ info:
     name: Apache License 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0.html
   description: >-
-    Describes two read-only source operations exposed as MCP tools. In this
+    Describes four read-only source operations exposed as MCP tools. In this
     reference implementation, caller authentication and tool entitlement are
     enforced at the MCP Discovery Proxy. The source mocks do not accept caller
     identity or entitlement context as request parameters.
@@ -120,6 +120,121 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500':
           description: The documentation search service failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /developer-intelligence/v1/documentation/sections/{api_name}/{section_id}:
+    get:
+      tags:
+        - Developer documentation
+      operationId: documentation_section_get
+      summary: Retrieve a complete documentation section
+      description: >-
+        Use this operation after documentation_search identifies a relevant
+        section. It returns complete raw Markdown, including code fences and
+        textual diagram definitions, so an agent can reason over the same source
+        that a portal renders for people.
+      parameters:
+        - name: api_name
+          in: path
+          required: true
+          description: Stable API catalogue identifier.
+          example: payments
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+            pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+        - name: section_id
+          in: path
+          required: true
+          description: Stable section identifier returned by documentation_search.
+          example: payment-initiation
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
+            pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+      responses:
+        '200':
+          description: Complete Markdown source for the selected section.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentationSectionResponse'
+        '401':
+          description: The caller is not authenticated.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: The caller is not entitled to this documentation.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: The API or section does not exist.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: The caller exceeded the applicable quota.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /developer-intelligence/v1/documentation/specs/{api_name}:
+    get:
+      tags:
+        - Developer documentation
+      operationId: openapi_spec_get
+      summary: Retrieve an API OpenAPI specification
+      description: >-
+        Use this operation when exact paths, parameters, schemas, or responses
+        are needed. It returns authoritative example OpenAPI YAML as content;
+        use documentation_section_get for explanatory implementation guidance.
+      parameters:
+        - name: api_name
+          in: path
+          required: true
+          description: Stable API catalogue identifier.
+          example: payments
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+            pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+      responses:
+        '200':
+          description: OpenAPI YAML for the selected API.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenApiSpecResponse'
+        '401':
+          description: The caller is not authenticated.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: The caller is not entitled to this API specification.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: The API specification does not exist.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: The caller exceeded the applicable quota.
           content:
             application/problem+json:
               schema:
@@ -265,6 +380,44 @@ components:
           type: string
           format: uri
           description: Optional developer-portal URL; never a storage or internal repository URL.
+
+    DocumentationSectionResponse:
+      type: object
+      additionalProperties: false
+      required: [api_name, document_id, section_id, title, content_type, content]
+      properties:
+        api_name:
+          type: string
+        document_id:
+          type: string
+        section_id:
+          type: string
+        title:
+          type: string
+        content_type:
+          type: string
+          enum: [text/markdown]
+        content:
+          type: string
+          maxLength: 30000
+          description: Raw Markdown with complete code and textual diagram blocks preserved.
+    OpenApiSpecResponse:
+      type: object
+      additionalProperties: false
+      required: [api_name, format, content_type, content]
+      properties:
+        api_name:
+          type: string
+        format:
+          type: string
+          enum: [openapi-3.0-yaml]
+        content_type:
+          type: string
+          enum: [application/yaml]
+        content:
+          type: string
+          maxLength: 100000
+          description: Complete OpenAPI YAML source for the selected API.
 
     ApiCatalogueSearchResponse:
       type: object

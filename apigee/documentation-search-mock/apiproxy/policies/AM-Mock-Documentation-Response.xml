@@ -1,27 +1,28 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<AssignMessage name="AM-Mock-Documentation-Response">
+<AssignMessage name="AM-Mock-Documentation-Response" continueOnError="false" enabled="true">
   <Set>
+    <StatusCode>200</StatusCode>
+    <ReasonPhrase>OK</ReasonPhrase>
     <Headers>
-      <Header name="X-Mock-Backend">mocktarget.apigee.net</Header>
+      <Header name="Content-Type">application/json</Header>
+      <Header name="X-Mock-Backend">apigee-assign-message</Header>
     </Headers>
-    <Payload contentType="application/json" variablePrefix="@" variableSuffix="#">{
+    <Payload contentType="application/json">{
   "matches": [
     {
       "api_name": "payments",
-      "document_id": "payment-process-api-reference",
-      "section_id": "get-payment-process",
-      "heading": "Retrieve a payment process",
-      "section_path": "API reference / Processes / Retrieve process",
-      "excerpt": "Retrieves a payment process using its process identifier.",
-      "relevance": 0.94,
-      "portal_url": "https://developer.example.com/apis/payments/docs#get-payment-process"
+      "document_id": "payments-guide",
+      "section_id": "payment-initiation",
+      "heading": "Payment initiation flow",
+      "section_path": "Guides / Payments / Payment initiation",
+      "excerpt": "Create a payment with an idempotency key, follow the request sequence, and retrieve its latest status.",
+      "relevance": 0.96,
+      "portal_url": "https://developer.example.com/apis/payments/docs#payment-initiation"
     }
   ],
   "returned": 1
 }</Payload>
-    <StatusCode>200</StatusCode>
-    <ReasonPhrase>OK</ReasonPhrase>
   </Set>
   <IgnoreUnresolvedVariables>true</IgnoreUnresolvedVariables>
-  <AssignTo createNew="false" transport="http" type="response"/>
+  <AssignTo createNew="true" transport="http" type="response"/>
 </AssignMessage>

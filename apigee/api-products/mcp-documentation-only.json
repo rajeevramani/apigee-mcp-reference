@@ -1,14 +1,16 @@
 {
   "name": "mcp-documentation-only",
-  "displayName": "MCP Documentation Search Only",
-  "description": "Access to documentation search, excluding API catalogue search.",
+  "displayName": "MCP Documentation Content",
+  "description": "Access to documentation search, Markdown sections, and API specifications, excluding API catalogue search.",
   "approvalType": "auto",
   "attributes": [{"name": "access", "value": "internal"}],
   "environments": ["eval"],
   "payloadOperationGroup": {
     "operationConfigs": [
       {"apiSource": "test-mcp", "operations": [{"operation": "tools/list"}], "quota": {"limit": "100", "interval": "1", "timeUnit": "minute"}},
-      {"apiSource": "test-mcp", "operations": [{"operation": "tools/call/documentation_search"}], "quota": {"limit": "100", "interval": "1", "timeUnit": "minute"}}
+      {"apiSource": "test-mcp", "operations": [{"operation": "tools/call/documentation_search"}], "quota": {"limit": "100", "interval": "1", "timeUnit": "minute"}},
+      {"apiSource": "test-mcp", "operations": [{"operation": "tools/call/documentation_section_get"}], "quota": {"limit": "100", "interval": "1", "timeUnit": "minute"}},
+      {"apiSource": "test-mcp", "operations": [{"operation": "tools/call/openapi_spec_get"}], "quota": {"limit": "100", "interval": "1", "timeUnit": "minute"}}
     ]
   }
 }

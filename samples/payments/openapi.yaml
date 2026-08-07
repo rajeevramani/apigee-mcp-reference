@@ -1,0 +1,79 @@
+openapi: 3.0.3
+info:
+  title: Example Payments API
+  version: 1.0.0
+  license:
+    name: Apache License 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+  description: Customer-neutral API contract served as documentation content by the mock.
+servers:
+  - url: https://api.example.com/payments/v1
+security: []
+paths:
+  /payments:
+    post:
+      operationId: create_payment
+      summary: Create a payment
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 100
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+      responses:
+        '202':
+          description: Payment accepted for processing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+  /payments/{payment_id}:
+    get:
+      operationId: get_payment
+      summary: Retrieve payment status
+      parameters:
+        - name: payment_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current payment state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+components:
+  schemas:
+    CreatePaymentRequest:
+      type: object
+      additionalProperties: false
+      required: [amount, currency, destination_account]
+      properties:
+        amount:
+          type: string
+          pattern: '^\d+\.\d{2}$'
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+        destination_account:
+          type: string
+    Payment:
+      type: object
+      additionalProperties: false
+      required: [payment_id, status]
+      properties:
+        payment_id:
+          type: string
+        status:
+          type: string
+          enum: [accepted, processing, completed, rejected]
