@@ -117,7 +117,7 @@ Never commit credentials, place them in URLs, or embed them in the static file.
 python3 scripts/verify.py
 ```
 
-The verifier checks customer-neutral placeholders, forbidden tenant identifiers, XML and JSON syntax, duplicate OpenAPI copies, browser HTML structure, and required repository files.
+The verifier checks customer-neutral placeholders, literal IPv4 addresses, XML and JSON syntax, duplicate OpenAPI copies, browser HTML structure, and required repository files. Before publishing from a private source, pass an untracked blocklist with `--forbidden-file /path/to/private-identifiers.txt` to check exact tenant and customer identifiers without embedding them in the public verifier.
 
 ## Security and production use
 

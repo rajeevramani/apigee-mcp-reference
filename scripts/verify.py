@@ -23,7 +23,7 @@ EXPECTED_MCP_PRODUCTS = {
     },
 }
 EXPECTED_PRODUCT_QUOTA = {"limit": "100", "interval": "1", "timeUnit": "minute"}
-FORBIDDEN = {}
+GENERIC_FORBIDDEN = {}
 
 REQUIRED = (
     "README.md",
@@ -62,6 +62,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=repo)
     parser.add_argument("--configured", action="store_true")
+    parser.add_argument(
+        "--forbidden-file",
+        type=Path,
+        help="optional untracked file containing one private identifier per line",
+    )
     args = parser.parse_args()
     root = args.root.expanduser().resolve()
     errors = []
@@ -77,7 +82,21 @@ def main() -> int:
     files = list(read_text_files(root))
     combined = "\n".join(text for _, text in files)
 
-    for label, pattern in FORBIDDEN.items():
+    forbidden = dict(GENERIC_FORBIDDEN)
+    if args.forbidden_file:
+        forbidden_file = args.forbidden_file.expanduser().resolve()
+        if not forbidden_file.is_file():
+            parser.error(f"forbidden file does not exist: {forbidden_file}")
+        for line_number, line in enumerate(
+            forbidden_file.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            identifier = line.strip()
+            if identifier and not identifier.startswith("#"):
+                forbidden[f"private identifier from line {line_number}"] = re.compile(
+                    re.escape(identifier), re.IGNORECASE
+                )
+
+    for label, pattern in forbidden.items():
         for path, text in files:
             if pattern.search(path.relative_to(root).as_posix()) or pattern.search(text):
                 fail(errors, f"forbidden {label} in {path.relative_to(root)}")
@@ -189,7 +208,7 @@ def main() -> int:
         return 1
 
     print(f"PASS: validated {len(files)} text files ({xml_count} XML, {json_count} JSON)")
-    print("PASS: forbidden tenant/customer identifiers absent")
+    print("PASS: generic and supplied private sanitisation patterns absent")
     print("PASS: API products contain only tools/list and tools/call/* operations")
     print("PASS: API-product entitlement matrix, source, and quotas match the reference design")
     print("PASS: API-product quota runs only for supported MCP product operations")
