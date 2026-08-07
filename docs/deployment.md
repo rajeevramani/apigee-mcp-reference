@@ -43,8 +43,8 @@ dist/api-catalogue-search-mock.zip
 The mock proxies return controlled JSON responses. Call each REST endpoint directly before involving MCP:
 
 ```text
-POST https://YOUR_HOST/developer-intelligence/v1/documentation/search
-POST https://YOUR_HOST/api-catalogue/v1/search
+GET https://YOUR_HOST/developer-intelligence/v1/documentation/search?query=payments&limit=1
+GET https://YOUR_HOST/api-catalogue/v1/search?query=payments&limit=1
 ```
 
 A deployment response alone is not enough. Confirm each call reaches Apigee and returns the expected mock payload.
@@ -85,7 +85,13 @@ Reverse OAS path: /documentation/search
 operationId:      documentation_search
 ```
 
-The effective method, path, operation ID, request schema, response schema, and hostname assumptions must remain aligned.
+The effective method, path, operation ID, query parameters, successful response schema, and hostname assumptions must remain aligned. Both contracts model these read-only searches as `GET` operations with bounded query parameters. In the reproduced environment, that produced flat MCP inputs; component-referenced and inline request bodies both produced wrappers.
+
+The MCP source contract also documents `401`, `403`, and `429` responses that can be emitted by the authenticated, product-governed MCP edge. The unauthenticated source-mock contracts omit those edge-only responses and document only the errors their own proxy path can return.
+
+Use this GET pattern only when inputs are bounded and non-sensitive. Query strings can appear in client history, gateway logs, caches, and observability data. Keep sensitive or larger search inputs in a `POST` body and accept the generated wrapper, or design a separate source operation for the MCP tool.
+
+Each source proxy runs `RF-Missing-Query` and then `OAS-Validate-Request` before returning the mock response. The explicit guard is required because the tested OAS validation runtime did not reject an absent required query parameter by itself. OAS validation enforces the remaining declared parameter constraints and rejects unspecified query parameters.
 
 The checked-in generated bundle under `apigee/mcp-discovery-proxy/` is an implementation reference. Compare generated policies and targets with it, but use the current product workflow unless current official documentation explicitly supports your chosen import path.
 
@@ -107,6 +113,8 @@ The API key reference in this example is:
 ```xml
 <APIKey ref="request.header.x-api-key"/>
 ```
+
+This policy protects the MCP Discovery Proxy. The two read-only source mocks declare `security: []` because they do not implement source-API authentication. Do not copy that boundary into production without explicitly designing source-API authorization and backend identity propagation.
 
 ## 7. Create API products and apps
 
@@ -141,8 +149,9 @@ Test in this order:
 6. `tools/call/documentation_search` with the documentation-only key — expect success.
 7. Direct `tools/call/api_catalogue_search` with the documentation-only key — expect denial.
 8. Both tool calls with the all-tools key — expect success.
+9. Omit `query`, send a legacy body wrapper, add an unspecified argument, and exceed `limit` — expect rejection.
 
-Inspect the `inputSchema` returned by `tools/list`. Do not assume that the MCP argument object is identical to the raw REST request body.
+Inspect the `inputSchema` returned by `tools/list`. Confirm that both tools expose `query` and `limit` directly, with `api_name` also available for `documentation_search`, and that `query` is required. The schema returned by `tools/list` is the contract the MCP client actually sees. If a wrapper appears, treat that generated schema as the immediate client contract and investigate the source OpenAPI and Apigee/API Hub transformation before release.
 
 ## 9. Use the browser client
 

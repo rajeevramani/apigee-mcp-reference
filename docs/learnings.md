@@ -30,13 +30,13 @@ The PoC required two aligned views of each operation:
 For example:
 
 ```text
-MCP source operation:    POST /developer-intelligence/v1/documentation/search
+MCP source operation:    GET /developer-intelligence/v1/documentation/search
 Reverse proxy base path:      /developer-intelligence/v1
-Reverse OAS operation:   POST /documentation/search
+Reverse OAS operation:   GET /documentation/search
 Operation ID:                 documentation_search
 ```
 
-The method, effective path, `operationId`, schemas, and hostname assumptions must agree. A source proxy can be deployed and callable while still being unusable as an MCP source if its OpenAPI metadata is missing, stale, or mismatched.
+The method, effective path, `operationId`, parameter constraints, successful response schemas, and hostname assumptions must agree. The MCP source contract may additionally document authentication, entitlement, and quota errors from the MCP edge; those do not belong in an unauthenticated reverse-proxy contract. A source proxy can be deployed and callable while still being unusable as an MCP source if its OpenAPI metadata is missing, stale, or mismatched.
 
 Treat OpenAPI validation and API Hub ingestion as release gates, not documentation cleanup.
 
@@ -54,7 +54,7 @@ The useful diagnostic sequence is:
 
 ## Tool arguments come from the generated schema
 
-A referenced request-body schema generated a wrapper object in the MCP `inputSchema`. The successful call therefore used:
+The initial source OpenAPI used a component-referenced request body. In the reproduced environment, that generated a wrapper object in the MCP `inputSchema`. The successful call therefore used:
 
 ```json
 {
@@ -66,7 +66,29 @@ A referenced request-body schema generated a wrapper object in the MCP `inputSch
 }
 ```
 
-The portable lesson is not the wrapper name. It is that MCP clients should inspect the `inputSchema` returned by `tools/list` rather than infer arguments from the REST request body.
+Inlining the same request properties did not flatten the generated schema. Apigee generated a different wrapper, `documentation_searchBody`. OpenAPI-equivalent request-body structures can therefore produce different names without producing better MCP ergonomics.
+
+The current reference models both read-only searches as `GET` operations with bounded query parameters in the MCP and reverse-proxy contracts. After redeployment, `tools/list` exposed the parameters directly and both tools accepted flat arguments:
+
+```json
+{
+  "query": "payment process endpoints",
+  "api_name": "payments",
+  "limit": 5
+}
+```
+
+This is not a universal reason to turn search bodies into query strings. URLs can be retained in client history, access logs, caches, and observability systems, and they have practical length limits. Use this pattern only for bounded, non-sensitive inputs. For sensitive or larger search requests, retain `POST` and accept the generated wrapper or introduce a purpose-built source operation rather than leaking input into a URL.
+
+The generated schema marked `query` as required but omitted `additionalProperties`. More importantly, the managed MCP layer did not reject a call that omitted `query`; the permissive mock initially returned success. The source proxies now run `OAS-Validate-Request` and an explicit `RF-Missing-Query` guard. Runtime tests reject a missing query, the old body wrapper, an unspecified argument, and an out-of-range limit.
+
+The portable lesson is not any wrapper name. The schema returned by `tools/list` is the contract the MCP client actually sees, but the source API must still enforce the contract when the managed layer does not. After any OpenAPI change, redeploy, inspect the actual `inputSchema`, call each tool with valid flat arguments, and run invalid-argument tests before treating the shape as released.
+
+## Keep the security layers explicit
+
+The reference authenticates MCP requests with `x-api-key` at the Discovery Proxy so Apigee can resolve a developer app, products, tool entitlement, and quota. The ordinary read-only source mocks do not implement source-API authentication and therefore declare `security: []` in their OpenAPI contracts.
+
+That is a deliberate demonstration boundary, not a production recommendation. A production design must separately decide how the ordinary source API authorizes the call and which identity reaches the backend. Declaring Bearer authentication in OpenAPI without a matching proxy policy would describe security that the implementation does not enforce.
 
 ## API products can govern individual tools
 

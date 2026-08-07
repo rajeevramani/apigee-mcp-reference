@@ -23,7 +23,12 @@ EXPECTED_MCP_PRODUCTS = {
     },
 }
 EXPECTED_PRODUCT_QUOTA = {"limit": "100", "interval": "1", "timeUnit": "minute"}
-GENERIC_FORBIDDEN = {}
+IPV4_OCTET = r"(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)"
+GENERIC_FORBIDDEN = {
+    "literal IPv4 address": re.compile(
+        rf"(?<![A-Za-z0-9_.]){IPV4_OCTET}(?:\.{IPV4_OCTET}){{3}}(?![A-Za-z0-9_.])"
+    ),
+}
 
 REQUIRED = (
     "README.md",
@@ -55,6 +60,162 @@ def read_text_files(root: Path):
 
 def fail(errors, message):
     errors.append(message)
+
+
+HTTP_METHODS = {"get", "post", "put", "patch", "delete", "head", "options", "trace"}
+EXPECTED_OPERATIONS = (
+    {
+        "source_path": "/developer-intelligence/v1/documentation/search",
+        "reverse_spec": "documentation-search-reverse-proxy.openapi.yaml",
+        "reverse_path": "/documentation/search",
+        "operation_id": "documentation_search",
+        "parameters": {
+            "query": {
+                "in": "query",
+                "required": "true",
+                "type": "string",
+                "minLength": "2",
+                "maxLength": "500",
+            },
+            "api_name": {
+                "in": "query",
+                "required": "false",
+                "type": "string",
+                "minLength": "1",
+                "maxLength": "100",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            },
+            "limit": {
+                "in": "query",
+                "required": "false",
+                "type": "integer",
+                "minimum": "1",
+                "maximum": "20",
+                "default": "5",
+            },
+        },
+        "schemas": ("DocumentationSearchResponse", "DocumentationMatch", "Problem"),
+    },
+    {
+        "source_path": "/api-catalogue/v1/search",
+        "reverse_spec": "api-catalogue-search-reverse-proxy.openapi.yaml",
+        "reverse_path": "/search",
+        "operation_id": "api_catalogue_search",
+        "parameters": {
+            "query": {
+                "in": "query",
+                "required": "true",
+                "type": "string",
+                "minLength": "2",
+                "maxLength": "300",
+            },
+            "limit": {
+                "in": "query",
+                "required": "false",
+                "type": "integer",
+                "minimum": "1",
+                "maximum": "10",
+                "default": "5",
+            },
+        },
+        "schemas": ("ApiCatalogueSearchResponse", "ApiCatalogueEntry", "Problem"),
+    },
+)
+
+
+def yaml_block(text: str, header: str, indent: int) -> list[str]:
+    """Return the indented YAML block after one exact header line."""
+    lines = text.splitlines()
+    indexes = [index for index, line in enumerate(lines) if line == header]
+    if len(indexes) != 1:
+        raise ValueError(f"expected one {header!r}, found {len(indexes)}")
+    start = indexes[0] + 1
+    end = start
+    while end < len(lines):
+        line = lines[end]
+        if line.strip() and len(line) - len(line.lstrip()) <= indent:
+            break
+        end += 1
+    return lines[start:end]
+
+
+def yaml_subblock(lines: list[str], header: str, indent: int) -> list[str]:
+    indexes = [index for index, line in enumerate(lines) if line == header]
+    if len(indexes) != 1:
+        raise ValueError(f"expected one {header!r}, found {len(indexes)}")
+    start = indexes[0] + 1
+    end = start
+    while end < len(lines):
+        line = lines[end]
+        if line.strip() and len(line) - len(line.lstrip()) <= indent:
+            break
+        end += 1
+    return lines[start:end]
+
+
+def parse_operation(text: str, path: str) -> dict:
+    path_lines = yaml_block(text, f"  {path}:", 2)
+    methods = [
+        line.strip()[:-1]
+        for line in path_lines
+        if len(line) - len(line.lstrip()) == 4
+        and line.strip().endswith(":")
+        and line.strip()[:-1] in HTTP_METHODS
+    ]
+    if methods != ["get"]:
+        raise ValueError(f"{path} must expose exactly GET, got {methods}")
+    operation_lines = yaml_subblock(path_lines, "    get:", 4)
+    operation_text = "\n".join(operation_lines)
+    operation_ids = re.findall(r"^      operationId:\s*(\S+)\s*$", operation_text, re.MULTILINE)
+    if len(operation_ids) != 1:
+        raise ValueError(f"{path} must contain one operationId")
+
+    parameter_lines = yaml_subblock(operation_lines, "      parameters:", 6)
+    starts = [
+        index
+        for index, line in enumerate(parameter_lines)
+        if re.match(r"^        - name:\s*\S+\s*$", line)
+    ]
+    parameters = {}
+    order = []
+    for position, start in enumerate(starts):
+        end = starts[position + 1] if position + 1 < len(starts) else len(parameter_lines)
+        chunk = parameter_lines[start:end]
+        name = chunk[0].split(":", 1)[1].strip()
+        if name in parameters:
+            raise ValueError(f"duplicate parameter {name!r} on {path}")
+        order.append(name)
+        schema_index = next((i for i, line in enumerate(chunk) if line == "          schema:"), None)
+        if schema_index is None:
+            raise ValueError(f"parameter {name!r} on {path} has no schema")
+        values = {}
+        for line in chunk[1:schema_index]:
+            match = re.match(r"^          (in|required):\s*(.+?)\s*$", line)
+            if match:
+                values[match.group(1)] = match.group(2).strip("'\"")
+        for line in chunk[schema_index + 1 :]:
+            match = re.match(
+                r"^            (type|minLength|maxLength|minimum|maximum|default|pattern):\s*(.+?)\s*$",
+                line,
+            )
+            if match:
+                values[match.group(1)] = match.group(2).strip("'\"")
+        parameters[name] = values
+
+    success_lines = yaml_subblock(operation_lines, "        '200':", 8)
+    success_refs = re.findall(r"\$ref:\s*'#/components/schemas/([^']+)'", "\n".join(success_lines))
+    if len(success_refs) != 1:
+        raise ValueError(f"{path} must contain one successful response schema")
+    return {
+        "operation_id": operation_ids[0],
+        "parameters": parameters,
+        "parameter_order": order,
+        "success_schema": success_refs[0],
+    }
+
+
+def normalized_schema(text: str, name: str) -> str:
+    return "\n".join(line.rstrip() for line in yaml_block(text, f"    {name}:", 4)).strip()
 
 
 def main() -> int:
@@ -177,6 +338,243 @@ def main() -> int:
         elif args.configured:
             fail(errors, f"missing OpenAPI pair: {left} or {right}")
 
+    spec_root = root / "specs"
+    spec_texts = {}
+    for spec_path in sorted(spec_root.glob("*.openapi.yaml")):
+        spec_text = spec_path.read_text(encoding="utf-8")
+        spec_texts[spec_path.name] = spec_text
+        relative = spec_path.relative_to(root)
+        if re.search(r"^\s*-\s+url:\s+\S+/\s*$", spec_text, re.MULTILINE):
+            fail(errors, f"OpenAPI server URL has a trailing slash: {relative}")
+        if "name: Proprietary" in spec_text:
+            fail(errors, f"OpenAPI license conflicts with the public reference: {relative}")
+        if "https://www.apache.org/licenses/LICENSE-2.0.html" not in spec_text:
+            fail(errors, f"OpenAPI is missing the Apache 2.0 license URL: {relative}")
+        if re.search(r"^\s*scheme:\s*bearer\s*$", spec_text, re.IGNORECASE | re.MULTILINE):
+            fail(errors, f"OpenAPI declares Bearer auth not implemented by the mock proxy: {relative}")
+        if re.search(r"^\s*securitySchemes:\s*$", spec_text, re.MULTILINE):
+            fail(errors, f"OpenAPI defines a security scheme not implemented by the mock proxy: {relative}")
+        security_lines = [line for line in spec_text.splitlines() if re.match(r"^\s*security:\s*", line)]
+        if security_lines != ["security: []"]:
+            fail(errors, f"OpenAPI must explicitly declare the mock source unauthenticated: {relative}")
+
+        if spec_path.name.endswith("-reverse-proxy.openapi.yaml"):
+            for edge_status in ("401", "403", "429"):
+                if re.search(rf"^\s*'{edge_status}':\s*$", spec_text, re.MULTILINE):
+                    fail(
+                        errors,
+                        f"reverse-proxy OpenAPI advertises MCP-edge-only HTTP {edge_status}: {relative}",
+                    )
+
+    mcp_source = spec_root / "mcp-tools.openapi.yaml"
+    if mcp_source.is_file():
+        mcp_text = mcp_source.read_text(encoding="utf-8")
+        if "requestBody:" in mcp_text:
+            fail(errors, "MCP tool inputs must use query parameters rather than wrapped request bodies")
+        for request_schema in ("DocumentationSearchRequest", "ApiCatalogueSearchRequest"):
+            if request_schema in mcp_text:
+                fail(errors, f"MCP source retains obsolete request schema {request_schema}")
+        for selection_guidance in (
+            "Use this operation when detailed API documentation is needed.",
+            "Use this operation to discover which APIs or capabilities are available.",
+        ):
+            if selection_guidance not in mcp_text:
+                fail(errors, f"MCP source is missing tool-selection guidance: {selection_guidance}")
+
+        for contract in EXPECTED_OPERATIONS:
+            reverse_text = spec_texts.get(contract["reverse_spec"])
+            if reverse_text is None:
+                fail(errors, f"missing reverse OpenAPI contract: specs/{contract['reverse_spec']}")
+                continue
+            try:
+                source_operation = parse_operation(mcp_text, contract["source_path"])
+                reverse_operation = parse_operation(reverse_text, contract["reverse_path"])
+                if source_operation["operation_id"] != contract["operation_id"]:
+                    fail(errors, f"incorrect MCP operationId for {contract['source_path']}")
+                if reverse_operation["operation_id"] != contract["operation_id"]:
+                    fail(errors, f"incorrect reverse operationId for {contract['reverse_path']}")
+                expected_parameters = contract["parameters"]
+                expected_order = list(expected_parameters)
+                for label, operation in (
+                    ("MCP", source_operation),
+                    ("reverse", reverse_operation),
+                ):
+                    if operation["parameter_order"] != expected_order:
+                        fail(
+                            errors,
+                            f"{label} parameter order differs for {contract['operation_id']}: "
+                            f"expected {expected_order}, got {operation['parameter_order']}",
+                        )
+                    if operation["parameters"] != expected_parameters:
+                        fail(
+                            errors,
+                            f"{label} parameter constraints differ for {contract['operation_id']}",
+                        )
+                if source_operation["parameters"] != reverse_operation["parameters"]:
+                    fail(errors, f"MCP and reverse parameters differ for {contract['operation_id']}")
+                if source_operation["success_schema"] != reverse_operation["success_schema"]:
+                    fail(errors, f"successful response references differ for {contract['operation_id']}")
+                for schema_name in contract["schemas"]:
+                    if normalized_schema(mcp_text, schema_name) != normalized_schema(
+                        reverse_text, schema_name
+                    ):
+                        fail(
+                            errors,
+                            f"shared schema {schema_name} differs for {contract['operation_id']}",
+                        )
+            except ValueError as exc:
+                fail(errors, f"invalid aligned OpenAPI operation {contract['operation_id']}: {exc}")
+
+    for apiproxy_dir in sorted((root / "apigee").glob("*/apiproxy")):
+        descriptors = sorted(apiproxy_dir.glob("*.xml"))
+        if len(descriptors) != 1:
+            fail(
+                errors,
+                f"expected one APIProxy descriptor in {apiproxy_dir.relative_to(root)}, "
+                f"found {len(descriptors)}",
+            )
+            continue
+        descriptor_root = ET.parse(descriptors[0]).getroot()
+        declared_policies = [
+            name.text for name in descriptor_root.findall("./Policies/Policy") if name.text
+        ]
+        policy_files = sorted(path.stem for path in (apiproxy_dir / "policies").glob("*.xml"))
+        if len(declared_policies) != len(set(declared_policies)):
+            fail(errors, f"duplicate policy declaration in {descriptors[0].relative_to(root)}")
+        if set(declared_policies) != set(policy_files):
+            missing = sorted(set(policy_files) - set(declared_policies))
+            stale = sorted(set(declared_policies) - set(policy_files))
+            fail(
+                errors,
+                f"policy manifest differs in {descriptors[0].relative_to(root)}: "
+                f"missing declarations {missing}, declarations without files {stale}",
+            )
+        referenced_policies = set()
+        for endpoint_dir in ("proxies", "targets"):
+            for endpoint_path in sorted((apiproxy_dir / endpoint_dir).glob("*.xml")):
+                endpoint_root = ET.parse(endpoint_path).getroot()
+                referenced_policies.update(
+                    name.text for name in endpoint_root.findall(".//Step/Name") if name.text
+                )
+        undeclared_references = sorted(referenced_policies - set(declared_policies))
+        if undeclared_references:
+            fail(
+                errors,
+                f"flow references undeclared policies in {apiproxy_dir.relative_to(root)}: "
+                f"{undeclared_references}",
+            )
+        unreferenced_policies = sorted(set(declared_policies) - referenced_policies)
+        if unreferenced_policies:
+            fail(
+                errors,
+                f"declared policy files are not referenced by a flow in "
+                f"{apiproxy_dir.relative_to(root)}: {unreferenced_policies}",
+            )
+
+    source_proxy_methods = (
+        (
+            root / "apigee" / "documentation-search-mock" / "apiproxy" / "proxies" / "default.xml",
+            "/documentation/search",
+        ),
+        (
+            root / "apigee" / "api-catalogue-search-mock" / "apiproxy" / "proxies" / "default.xml",
+            "/search",
+        ),
+    )
+    for proxy_path, path_suffix in source_proxy_methods:
+        if proxy_path.is_file():
+            proxy_root = ET.parse(proxy_path).getroot()
+            expected = f'(proxy.pathsuffix MatchesPath "{path_suffix}") and (request.verb = "GET")'
+            matching_flows = [
+                flow for flow in proxy_root.findall("./Flows/Flow") if flow.findtext("Condition") == expected
+            ]
+            if len(matching_flows) != 1:
+                fail(errors, f"source proxy must map {path_suffix} as a GET operation")
+                continue
+            steps = matching_flows[0].findall("./Request/Step")
+            step_names = [step.findtext("Name") for step in steps]
+            expected_steps = ["RF-Missing-Query", "OAS-Validate-Request", "AM-Disable-Path-Suffix"]
+            if step_names != expected_steps:
+                fail(
+                    errors,
+                    f"source proxy request policy order differs for {path_suffix}: "
+                    f"expected {expected_steps}, got {step_names}",
+                )
+            if not steps or steps[0].findtext("Condition") != (
+                '(request.queryparam.query = null) or (request.queryparam.query = "")'
+            ):
+                fail(errors, f"source proxy has an incorrect missing-query condition for {path_suffix}")
+
+    validation_policies = (
+        (
+            root / "apigee" / "documentation-search-mock" / "apiproxy" / "policies" / "OAS-Validate-Request.xml",
+            "oas://documentation-search-reverse-proxy.openapi.yaml",
+        ),
+        (
+            root / "apigee" / "api-catalogue-search-mock" / "apiproxy" / "policies" / "OAS-Validate-Request.xml",
+            "oas://api-catalogue-search-reverse-proxy.openapi.yaml",
+        ),
+    )
+    for policy_path, expected_resource in validation_policies:
+        if not policy_path.is_file():
+            fail(errors, f"missing OAS validation policy: {policy_path.relative_to(root)}")
+            continue
+        policy_root = ET.parse(policy_path).getroot()
+        if policy_root.tag != "OASValidation":
+            fail(errors, f"unexpected policy type in {policy_path.relative_to(root)}")
+        if policy_root.get("enabled") != "true" or policy_root.get("continueOnError") != "false":
+            fail(errors, f"OAS validation policy must fail closed: {policy_path.relative_to(root)}")
+        if policy_root.findtext("OASResource") != expected_resource:
+            fail(errors, f"OAS validation policy references the wrong contract: {policy_path.relative_to(root)}")
+        if policy_root.findtext("./Options/ValidateMessageBody") != "false":
+            fail(errors, f"GET OAS validation must not expect a message body: {policy_path.relative_to(root)}")
+        if policy_root.findtext("./Options/AllowUnspecifiedParameters/Query") != "false":
+            fail(errors, f"OAS validation policy must reject unspecified query parameters: {policy_path.relative_to(root)}")
+
+    missing_query_policies = (
+        root / "apigee" / "documentation-search-mock" / "apiproxy" / "policies" / "RF-Missing-Query.xml",
+        root / "apigee" / "api-catalogue-search-mock" / "apiproxy" / "policies" / "RF-Missing-Query.xml",
+    )
+    for policy_path in missing_query_policies:
+        if not policy_path.is_file():
+            fail(errors, f"missing query guard policy: {policy_path.relative_to(root)}")
+            continue
+        policy_root = ET.parse(policy_path).getroot()
+        if policy_root.tag != "RaiseFault":
+            fail(errors, f"query guard must be a RaiseFault policy: {policy_path.relative_to(root)}")
+            continue
+        if policy_root.get("enabled") != "true" or policy_root.get("continueOnError") != "false":
+            fail(errors, f"query guard must fail closed: {policy_path.relative_to(root)}")
+        fault_set = policy_root.find("./FaultResponse/Set")
+        if fault_set is None or fault_set.findtext("StatusCode") != "400":
+            fail(errors, f"query guard must return HTTP 400: {policy_path.relative_to(root)}")
+            continue
+        content_type_headers = [
+            header.text
+            for header in fault_set.findall("./Headers/Header")
+            if header.get("name") == "Content-Type"
+        ]
+        if content_type_headers != ["application/problem+json"]:
+            fail(errors, f"query guard must return problem JSON: {policy_path.relative_to(root)}")
+        payload = fault_set.find("Payload")
+        if payload is None or payload.get("contentType") != "application/problem+json":
+            fail(errors, f"query guard has an invalid payload content type: {policy_path.relative_to(root)}")
+            continue
+        try:
+            problem = json.loads(payload.text or "")
+        except json.JSONDecodeError:
+            fail(errors, f"query guard payload is not JSON: {policy_path.relative_to(root)}")
+            continue
+        if problem != {
+            "type": "https://example.com/problems/invalid-search-query",
+            "title": "Invalid search request",
+            "status": 400,
+            "detail": "The query parameter is required.",
+        }:
+            fail(errors, f"query guard payload differs from the contract: {policy_path.relative_to(root)}")
+        if policy_root.findtext("IgnoreUnresolvedVariables") != "true":
+            fail(errors, f"query guard must ignore unresolved variables: {policy_path.relative_to(root)}")
+
     browser = root / "app" / "mcp-tool-browser.html"
     if browser.is_file():
         browser_text = browser.read_text(encoding="utf-8")
@@ -213,6 +611,9 @@ def main() -> int:
     print("PASS: API-product entitlement matrix, source, and quotas match the reference design")
     print("PASS: API-product quota runs only for supported MCP product operations")
     print("PASS: OpenAPI source and embedded copies match")
+    print("PASS: OpenAPI contracts use accurate licensing, security, and server URLs")
+    print("PASS: MCP inputs use bounded GET query parameters and include tool-selection guidance")
+    print("PASS: APIProxy policy manifests, files, and flow references agree")
     print("PASS: placeholder mode is correct")
     return 0
 

@@ -5,6 +5,8 @@
   <Policies>
     <Policy>AM-Disable-Path-Suffix</Policy>
     <Policy>AM-Mock-Api-Catalogue-Response</Policy>
+    <Policy>OAS-Validate-Request</Policy>
+    <Policy>RF-Missing-Query</Policy>
   </Policies>
   <ProxyEndpoints>
     <ProxyEndpoint>default</ProxyEndpoint>

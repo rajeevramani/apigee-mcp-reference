@@ -2,25 +2,44 @@ openapi: 3.0.3
 info:
   title: API Catalogue Search Reverse Proxy API
   version: 0.1.0
+  license:
+    name: Apache License 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
   description: Searches the API catalogue exposed through this Apigee reverse proxy.
 servers:
   - url: https://YOUR_APIGEE_HOSTNAME/api-catalogue/v1
     description: Sandbox Apigee reverse-proxy endpoint.
+security: []
 paths:
   /search:
-    post:
+    get:
       operationId: api_catalogue_search
       summary: Search the API catalogue
-      description: Finds APIs by capability or natural-language query and returns concise catalogue metadata.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ApiCatalogueSearchRequest'
-            example:
-              query: payment APIs
-              limit: 5
+      description: >-
+        Use this operation to discover which APIs or capabilities are available.
+        It finds APIs by capability or natural-language query and returns concise
+        catalogue metadata. Do not use it for detailed endpoint documentation;
+        use documentation_search instead.
+      parameters:
+        - name: query
+          in: query
+          required: true
+          description: Natural-language capability or API-name search query.
+          example: payment APIs
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 300
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of catalogue entries to return.
+          example: 5
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10
+            default: 5
       responses:
         '200':
           description: Matching API catalogue entries ordered by relevance.
@@ -43,41 +62,14 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
-        '401':
-          description: The caller is not authenticated.
-        '403':
-          description: The caller is not permitted to discover catalogue entries.
-        '429':
-          description: The caller exceeded the applicable quota.
         '500':
           description: The catalogue search service failed.
-      security:
-        - bearerAuth: []
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
 components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
   schemas:
-    ApiCatalogueSearchRequest:
-      type: object
-      additionalProperties: false
-      required:
-        - query
-      properties:
-        query:
-          type: string
-          minLength: 2
-          maxLength: 300
-          description: Natural-language capability or API-name search query.
-          example: payment APIs
-        limit:
-          type: integer
-          minimum: 1
-          maximum: 10
-          default: 5
-          description: Maximum number of entitlement-filtered catalogue entries to return.
     ApiCatalogueSearchResponse:
       type: object
       additionalProperties: false
@@ -126,7 +118,11 @@ components:
           description: Optional public developer-portal URL.
     Problem:
       type: object
-      required: [type, title, status]
+      additionalProperties: true
+      required:
+        - type
+        - title
+        - status
       properties:
         type:
           type: string
@@ -139,3 +135,6 @@ components:
           maximum: 599
         detail:
           type: string
+        correlation_id:
+          type: string
+          description: Safe identifier used to correlate platform logs.

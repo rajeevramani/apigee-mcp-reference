@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RaiseFault continueOnError="false" enabled="true" name="RF-Missing-Query">
+  <DisplayName>Reject requests without a search query</DisplayName>
+  <FaultResponse>
+    <Set>
+      <Headers>
+        <Header name="Content-Type">application/problem+json</Header>
+      </Headers>
+      <Payload contentType="application/problem+json">{"type":"https://example.com/problems/invalid-search-query","title":"Invalid search request","status":400,"detail":"The query parameter is required."}</Payload>
+      <StatusCode>400</StatusCode>
+      <ReasonPhrase>Bad Request</ReasonPhrase>
+    </Set>
+  </FaultResponse>
+  <IgnoreUnresolvedVariables>true</IgnoreUnresolvedVariables>
+</RaiseFault>

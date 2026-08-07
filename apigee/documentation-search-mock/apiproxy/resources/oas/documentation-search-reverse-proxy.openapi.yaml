@@ -3,12 +3,12 @@ info:
   title: Developer Documentation Search Reverse Proxy API
   version: 0.1.0
   license:
-    name: Proprietary
+    name: Apache License 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
   description: >-
-    Searches approved API documentation. Results are filtered using the
-    authenticated caller's application and API-product entitlements. Caller
-    identity and entitlement context are supplied by the platform and are not
-    accepted as request parameters.
+    Describes the read-only documentation search mock exposed through an
+    ordinary Apigee reverse proxy. Authentication and tool entitlement are
+    enforced separately at the MCP Discovery Proxy in this reference.
 servers:
   - url: https://YOUR_APIGEE_HOSTNAME/developer-intelligence/v1
     description: >-
@@ -17,35 +17,55 @@ servers:
 tags:
   - name: Developer documentation
     description: Search approved API documentation available to the caller.
+security: []
 paths:
   /documentation/search:
-    post:
+    get:
       tags:
         - Developer documentation
       operationId: documentation_search
       summary: Search approved API documentation
       description: >-
-        Searches indexed documentation sections using a natural-language query.
-        Optionally restricts the search to one API. The service removes results
-        for APIs and environments that the authenticated caller is not entitled
-        to discover. It never returns Cloud Storage object paths or internal
-        repository locations.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DocumentationSearchRequest'
-            examples:
-              paymentProcessEndpoints:
-                summary: Find documentation about payment process endpoints
-                value:
-                  query: payment process endpoints
-                  api_name: payments
-                  limit: 5
+        Use this operation when detailed API documentation is needed. It searches
+        indexed documentation sections using a natural-language query and can
+        optionally restrict the search to one API. Do not use it merely to
+        discover which APIs are available; use api_catalogue_search instead. It
+        never returns storage object paths or internal repository locations.
+      parameters:
+        - name: query
+          in: query
+          required: true
+          description: Natural-language documentation search query.
+          example: payment process endpoints
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 500
+        - name: api_name
+          in: query
+          required: false
+          description: >-
+            Optional API catalogue name used to restrict the search. This is a
+            search filter, not an authorization override.
+          example: payments
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+            pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of matches to return.
+          example: 5
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 5
       responses:
         '200':
-          description: Entitlement-filtered documentation matches ordered by relevance.
+          description: Documentation matches ordered by relevance.
           content:
             application/json:
               schema:
@@ -70,76 +90,14 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
-        '401':
-          description: The caller is not authenticated.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '403':
-          description: The caller is not permitted to use documentation search.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '429':
-          description: The caller exceeded the applicable quota.
-          headers:
-            Retry-After:
-              description: Number of seconds to wait before retrying.
-              schema:
-                type: integer
-                minimum: 1
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
         '500':
           description: The documentation search service failed.
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
-      security:
-        - bearerAuth: []
 components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: >-
-        Access token validated by Apigee. The final identity-propagation design
-        between the MCP Discovery Proxy and this API must be validated during
-        the proof of concept.
   schemas:
-    DocumentationSearchRequest:
-      type: object
-      additionalProperties: false
-      required:
-        - query
-      properties:
-        query:
-          type: string
-          minLength: 2
-          maxLength: 500
-          description: Natural-language documentation search query.
-          example: payment process endpoints
-        api_name:
-          type: string
-          minLength: 1
-          maxLength: 100
-          pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
-          description: >-
-            Optional API catalogue name used to restrict the search. This is a
-            search filter, not an authorization override.
-          example: payments
-        limit:
-          type: integer
-          minimum: 1
-          maximum: 20
-          default: 5
-          description: Maximum number of entitlement-filtered matches to return.
     DocumentationSearchResponse:
       type: object
       additionalProperties: false
@@ -156,7 +114,7 @@ components:
           type: integer
           minimum: 0
           maximum: 20
-          description: Number of matches returned after entitlement filtering.
+          description: Number of documentation matches returned.
     DocumentationMatch:
       type: object
       additionalProperties: false

@@ -21,6 +21,7 @@ The repository includes two mock REST APIs, their ordinary Apigee reverse proxie
 - One MCP Discovery Proxy can expose operations from separate source proxies.
 - Every MCP tool maps to an operation on a deployed ordinary Apigee reverse proxy.
 - The full-path MCP source contract and relative-path reverse-proxy contract must align.
+- Read-only `GET` operations with bounded query parameters generate flat, model-facing MCP arguments while preserving the same contract in the reverse proxy.
 - API products can filter `tools/list` by caller entitlement.
 - A caller can be allowed to discover and invoke one tool while being denied another.
 - `ParsePayload → VerifyAPIKey → Quota` enables operation-aware access and quota enforcement.
@@ -95,6 +96,7 @@ Follow [`docs/deployment.md`](docs/deployment.md). The short sequence is:
 6. Create the API products, developer, and developer apps in your own organisation.
 7. Test direct REST before testing MCP.
 8. Exercise `initialize → tools/list → tools/call`.
+9. Inspect each generated `inputSchema`; do not infer MCP arguments from the source YAML alone.
 
 The generated MCP bundle under `apigee/mcp-discovery-proxy/` is retained as an inspectable reference. Use the current documented Apigee creation flow rather than assuming that importing a previously generated bundle is supported in every tenant or release.
 
@@ -117,11 +119,11 @@ Never commit credentials, place them in URLs, or embed them in the static file.
 python3 scripts/verify.py
 ```
 
-The verifier checks customer-neutral placeholders, literal IPv4 addresses, XML and JSON syntax, duplicate OpenAPI copies, browser HTML structure, and required repository files. Before publishing from a private source, pass an untracked blocklist with `--forbidden-file /path/to/private-identifiers.txt` to check exact tenant and customer identifiers without embedding them in the public verifier.
+The verifier checks customer-neutral placeholders, literal IPv4 addresses, XML and JSON syntax, duplicate OpenAPI copies, GET/query-parameter tool inputs, source-proxy OpenAPI validation, missing-query guards, tool-selection guidance, OpenAPI licensing and security declarations, browser HTML structure, and required repository files. Before publishing from a private source, pass an untracked blocklist with `--forbidden-file /path/to/private-identifiers.txt` to check exact tenant and customer identifiers without embedding them in the public verifier.
 
 ## Security and production use
 
-This repository uses mock read-only operations to demonstrate architecture and entitlement. It is not a production security baseline. Before production use, resolve caller identity, developer-app mapping, API-product ownership, source-API authorization, backend identity propagation, secret handling, audit requirements, quotas, and write-operation risk.
+This repository uses mock read-only operations to demonstrate architecture and entitlement. The source mocks explicitly declare `security: []`; the example `x-api-key` check protects the MCP Discovery Proxy, not the ordinary source proxies. This is not a production security baseline. Before production use, resolve caller identity, developer-app mapping, API-product ownership, source-API authorization, backend identity propagation, secret handling, audit requirements, quotas, and write-operation risk.
 
 See [`SECURITY.md`](SECURITY.md) for reporting and credential guidance.
 

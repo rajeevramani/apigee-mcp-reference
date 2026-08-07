@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<OASValidation continueOnError="false" enabled="true" name="OAS-Validate-Request">
+  <DisplayName>Validate request against the reverse-proxy OpenAPI contract</DisplayName>
+  <OASResource>oas://documentation-search-reverse-proxy.openapi.yaml</OASResource>
+  <Options>
+    <ValidateMessageBody>false</ValidateMessageBody>
+    <AllowUnspecifiedParameters>
+      <Query>false</Query>
+    </AllowUnspecifiedParameters>
+  </Options>
+  <Source>request</Source>
+</OASValidation>

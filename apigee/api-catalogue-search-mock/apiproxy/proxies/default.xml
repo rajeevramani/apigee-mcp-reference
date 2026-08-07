@@ -7,12 +7,17 @@
   <Flows>
     <Flow name="api-catalogue-search">
       <Request>
+        <Step>
+          <Name>RF-Missing-Query</Name>
+          <Condition>(request.queryparam.query = null) or (request.queryparam.query = "")</Condition>
+        </Step>
+        <Step><Name>OAS-Validate-Request</Name></Step>
         <Step><Name>AM-Disable-Path-Suffix</Name></Step>
       </Request>
       <Response>
         <Step><Name>AM-Mock-Api-Catalogue-Response</Name></Step>
       </Response>
-      <Condition>(proxy.pathsuffix MatchesPath "/search") and (request.verb = "POST")</Condition>
+      <Condition>(proxy.pathsuffix MatchesPath "/search") and (request.verb = "GET")</Condition>
     </Flow>
   </Flows>
   <PostFlow name="PostFlow">
