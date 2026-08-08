@@ -43,6 +43,7 @@ REQUIRED = (
     "CONTRIBUTING.md",
     "app/mcp-tool-browser.html",
     "app/content-renderer.js",
+    "app/agent-simulator.js",
     "samples/payments/payment-initiation.md",
     "samples/payments/openapi.yaml",
     "specs/mcp-tools.openapi.yaml",
@@ -645,7 +646,17 @@ def main() -> int:
     browser = root / "app" / "mcp-tool-browser.html"
     if browser.is_file():
         browser_text = browser.read_text(encoding="utf-8")
-        for required in ("initialize", "tools/list", "tools/call", "x-api-key", "content-renderer.js", "Raw response"):
+        for required in (
+            "initialize",
+            "tools/list",
+            "tools/call",
+            "x-api-key",
+            "content-renderer.js",
+            "agent-simulator.js",
+            "Agent simulation",
+            "Behind the scenes",
+            "Raw response",
+        ):
             if required not in browser_text:
                 fail(errors, f"browser client is missing {required}")
 

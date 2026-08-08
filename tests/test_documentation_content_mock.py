@@ -108,6 +108,23 @@ class DocumentationContentMockTests(unittest.TestCase):
         self.assertIn("result-preview", browser)
         self.assertIn("Raw response", browser)
 
+    def test_browser_has_agent_comparison_tab_and_visible_protocol_trace(self):
+        browser = (ROOT / "app/mcp-tool-browser.html").read_text(encoding="utf-8")
+        self.assertIn('role="tablist"', browser)
+        self.assertIn('id="agentTab"', browser)
+        self.assertIn('tabindex="-1"', browser)
+        self.assertIn("function handleTabKeydown", browser)
+        self.assertIn('id="connectionStatus"', browser)
+        self.assertIn("connectionStatus.hidden = showAgent", browser)
+        self.assertIn('id="agentPanel"', browser)
+        self.assertIn('id="fullAccessKey"', browser)
+        self.assertIn('id="restrictedAccessKey"', browser)
+        self.assertIn('id="runAgentComparison"', browser)
+        self.assertIn('id="fullAgentTrace"', browser)
+        self.assertIn('id="restrictedAgentTrace"', browser)
+        self.assertIn('Deterministic simulation — no LLM', browser)
+        self.assertIn('<script src="agent-simulator.js"></script>', browser)
+
 
 if __name__ == "__main__":
     unittest.main()

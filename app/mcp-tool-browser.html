@@ -53,14 +53,14 @@
       background: var(--white);
     }
     label { display: block; margin-bottom: 6px; color: var(--muted); font-size: 12px; font-weight: 650; }
-    input, button {
+    input, select, button {
       min-height: 44px;
       border: 1px solid var(--line);
       border-radius: 5px;
       font: inherit;
     }
-    input { width: 100%; padding: 10px 12px; color: var(--ink); background: var(--white); }
-    input:focus, button:focus-visible { outline: 3px solid rgba(0,125,186,.2); border-color: var(--blue); }
+    input, select { width: 100%; padding: 10px 12px; color: var(--ink); background: var(--white); }
+    input:focus, select:focus, button:focus-visible { outline: 3px solid rgba(0,125,186,.2); border-color: var(--blue); }
     button {
       align-self: end;
       padding: 10px 20px;
@@ -169,11 +169,59 @@
       background: var(--white);
       text-align: center;
     }
+    .tabs { display: flex; gap: 6px; margin-bottom: 18px; border-bottom: 1px solid var(--line); }
+    .tab-button {
+      min-height: 42px;
+      padding: 9px 16px;
+      color: var(--muted);
+      border: 0;
+      border-bottom: 3px solid transparent;
+      border-radius: 0;
+      background: transparent;
+    }
+    .tab-button:hover { color: var(--navy); background: #eaf0f5; }
+    .tab-button[aria-selected="true"] { color: var(--navy); border-bottom-color: var(--blue); background: var(--white); }
+    .agent-intro { display: grid; gap: 6px; margin-bottom: 14px; }
+    .agent-intro h2, .agent-intro p { margin: 0; }
+    .agent-intro p { color: var(--muted); }
+    .simulation-badge { width: fit-content; padding: 4px 8px; border-radius: 999px; color: #075a81; background: #dff3fb; font-size: 11px; font-weight: 700; }
+    .agent-config {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) minmax(210px, .75fr) minmax(210px, .75fr) auto;
+      gap: 12px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--white);
+    }
+    .agent-goal { margin: 14px 0; padding: 13px 15px; border-left: 4px solid var(--teal); background: #f2fbfc; }
+    .agent-goal strong { color: var(--navy); }
+    .agent-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .agent-lane { min-width: 0; padding: 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--white); }
+    .agent-lane-header { display: flex; justify-content: space-between; gap: 12px; align-items: start; margin-bottom: 12px; }
+    .agent-lane h3 { margin: 0; color: var(--navy); font-size: 16px; }
+    .agent-lane-subtitle { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+    .lane-state { padding: 3px 8px; border-radius: 999px; color: var(--muted); background: #eef2f6; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .lane-state.running { color: #7a4b00; background: #fff2cc; }
+    .lane-state.complete { color: #006b49; background: #dff7ed; }
+    .lane-state.error { color: var(--danger); background: #fff0ee; }
+    .access-summary { margin-bottom: 12px; padding: 11px; border-radius: 5px; background: #f7f9fb; color: var(--muted); font-size: 13px; }
+    .access-summary strong { display: block; margin-bottom: 3px; color: var(--ink); }
+    .agent-trace { display: grid; gap: 10px; }
+    .trace-item { position: relative; padding: 11px 11px 11px 38px; border: 1px solid var(--line); border-radius: 6px; background: #fbfcfd; }
+    .trace-item::before { position: absolute; left: 12px; top: 12px; display: grid; width: 18px; height: 18px; place-items: center; border-radius: 50%; color: var(--white); background: var(--blue); content: attr(data-step); font-size: 10px; font-weight: 700; }
+    .trace-item.decision::before { background: #8b5cf6; }
+    .trace-item.observation::before { background: var(--success); }
+    .trace-item.error::before { background: var(--danger); content: "!"; }
+    .trace-title { margin: 0; font-size: 13px; font-weight: 700; }
+    .trace-summary { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+    .trace-item details { margin-top: 8px; }
+    .trace-item pre { max-height: 240px; }
     @media (max-width: 700px) {
       header { align-items: flex-start; padding: 14px 18px; }
       main { width: min(100% - 20px, 1100px); margin-top: 18px; }
-      .connection, .tool { grid-template-columns: 1fr; }
-      .connection > button { width: 100%; }
+      .connection, .tool, .agent-config, .agent-comparison { grid-template-columns: 1fr; }
+      .connection > button, .agent-config > button { width: 100%; }
     }
   </style>
 </head>
@@ -183,34 +231,95 @@
       <h1>Apigee MCP Tool Browser</h1>
       <p>Inspect tools exposed by an MCP Discovery Proxy</p>
     </div>
-    <div class="status"><span id="statusDot" class="dot"></span><span id="statusText">Not connected</span></div>
+    <div id="connectionStatus" class="status"><span id="statusDot" class="dot"></span><span id="statusText">Not connected</span></div>
   </header>
 
   <main>
-    <section class="connection" aria-label="MCP connection">
-      <div>
-        <label for="endpoint">MCP endpoint</label>
-        <input id="endpoint" type="url" value="https://YOUR_APIGEE_HOSTNAME/mcp" spellcheck="false">
+    <nav class="tabs" role="tablist" aria-label="Browser modes">
+      <button id="toolsTab" class="tab-button" type="button" role="tab" aria-selected="true" aria-controls="toolBrowserPanel">Tool browser</button>
+      <button id="agentTab" class="tab-button" type="button" role="tab" aria-selected="false" aria-controls="agentPanel" tabindex="-1">Agent simulation</button>
+    </nav>
+
+    <section id="toolBrowserPanel" role="tabpanel" aria-labelledby="toolsTab">
+      <section class="connection" aria-label="MCP connection">
+        <div>
+          <label for="endpoint">MCP endpoint</label>
+          <input id="endpoint" type="url" value="https://YOUR_APIGEE_HOSTNAME/mcp" spellcheck="false">
+        </div>
+        <div>
+          <label for="apiKey">API key</label>
+          <input id="apiKey" type="password" placeholder="Enter an approved app key" autocomplete="off" spellcheck="false">
+        </div>
+        <button id="connect" type="button">Connect and list tools</button>
+      </section>
+
+      <div id="message" class="message" hidden></div>
+
+      <div class="toolbar">
+        <h2>Available tools</h2>
+        <span id="count" class="count">0 tools</span>
       </div>
-      <div>
-        <label for="apiKey">API key</label>
-        <input id="apiKey" type="password" placeholder="Enter an approved app key" autocomplete="off" spellcheck="false">
-      </div>
-      <button id="connect" type="button">Connect and list tools</button>
+      <section id="tools" class="tools" aria-live="polite">
+        <div class="empty">Connect to the MCP endpoint to list its tools.</div>
+      </section>
     </section>
 
-    <div id="message" class="message" hidden></div>
+    <section id="agentPanel" role="tabpanel" aria-labelledby="agentTab" hidden>
+      <div class="agent-intro">
+        <span class="simulation-badge">Deterministic simulation — no LLM</span>
+        <h2>Compare agent behaviour by entitlement</h2>
+        <p>Both lanes receive the same goal. Each agent discovers its own tools, adapts its plan, and exposes every MCP request, decision, and observation.</p>
+      </div>
 
-    <div class="toolbar">
-      <h2>Available tools</h2>
-      <span id="count" class="count">0 tools</span>
-    </div>
-    <section id="tools" class="tools" aria-live="polite">
-      <div class="empty">Connect to the MCP endpoint to list its tools.</div>
+      <section class="agent-config" aria-label="Agent simulation configuration">
+        <div>
+          <label for="agentEndpoint">MCP endpoint</label>
+          <input id="agentEndpoint" type="url" value="https://YOUR_APIGEE_HOSTNAME/mcp" spellcheck="false">
+        </div>
+        <div>
+          <label for="fullAccessKey">Full-access API key</label>
+          <input id="fullAccessKey" type="password" placeholder="Key for mcp-all-tools" autocomplete="off" spellcheck="false">
+        </div>
+        <div>
+          <label for="restrictedAccessKey">Restricted-access API key</label>
+          <input id="restrictedAccessKey" type="password" placeholder="Key for documentation-only" autocomplete="off" spellcheck="false">
+        </div>
+        <button id="runAgentComparison" type="button">Run comparison</button>
+      </section>
+
+      <div id="agentMessage" class="message" hidden></div>
+      <p class="agent-goal"><strong>Agent goal:</strong> Explain how to implement payment initiation using the APIs and documentation available to you.</p>
+
+      <section class="agent-comparison" aria-live="polite">
+        <article class="agent-lane">
+          <div class="agent-lane-header">
+            <div>
+              <h3>Agent A</h3>
+              <p class="agent-lane-subtitle">Expected full-access product</p>
+            </div>
+            <span id="fullAgentState" class="lane-state">Ready</span>
+          </div>
+          <div id="fullAccessSummary" class="access-summary">Run the comparison to discover this agent’s actual entitlements.</div>
+          <div id="fullAgentTrace" class="agent-trace"></div>
+        </article>
+
+        <article class="agent-lane">
+          <div class="agent-lane-header">
+            <div>
+              <h3>Agent B</h3>
+              <p class="agent-lane-subtitle">Expected documentation-only product</p>
+            </div>
+            <span id="restrictedAgentState" class="lane-state">Ready</span>
+          </div>
+          <div id="restrictedAccessSummary" class="access-summary">Run the comparison to discover this agent’s actual entitlements.</div>
+          <div id="restrictedAgentTrace" class="agent-trace"></div>
+        </article>
+      </section>
     </section>
   </main>
 
   <script src="content-renderer.js"></script>
+  <script src="agent-simulator.js"></script>
   <script>
     const endpoint = document.querySelector('#endpoint');
     const apiKey = document.querySelector('#apiKey');
@@ -220,6 +329,22 @@
     const message = document.querySelector('#message');
     const statusDot = document.querySelector('#statusDot');
     const statusText = document.querySelector('#statusText');
+    const connectionStatus = document.querySelector('#connectionStatus');
+    const toolsTab = document.querySelector('#toolsTab');
+    const agentTab = document.querySelector('#agentTab');
+    const toolBrowserPanel = document.querySelector('#toolBrowserPanel');
+    const agentPanel = document.querySelector('#agentPanel');
+    const agentEndpoint = document.querySelector('#agentEndpoint');
+    const fullAccessKey = document.querySelector('#fullAccessKey');
+    const restrictedAccessKey = document.querySelector('#restrictedAccessKey');
+    const runAgentComparison = document.querySelector('#runAgentComparison');
+    const agentMessage = document.querySelector('#agentMessage');
+    const fullAgentTrace = document.querySelector('#fullAgentTrace');
+    const restrictedAgentTrace = document.querySelector('#restrictedAgentTrace');
+    const fullAccessSummary = document.querySelector('#fullAccessSummary');
+    const restrictedAccessSummary = document.querySelector('#restrictedAccessSummary');
+    const fullAgentState = document.querySelector('#fullAgentState');
+    const restrictedAgentState = document.querySelector('#restrictedAgentState');
 
     let requestId = 0;
     let sessionId = null;
@@ -234,6 +359,41 @@
       message.hidden = !text;
       message.textContent = text || '';
       message.className = `message${isError ? ' error' : ''}`;
+    }
+
+    function selectTab(tab) {
+      const showAgent = tab === agentTab;
+      toolsTab.setAttribute('aria-selected', String(!showAgent));
+      agentTab.setAttribute('aria-selected', String(showAgent));
+      toolsTab.tabIndex = showAgent ? -1 : 0;
+      agentTab.tabIndex = showAgent ? 0 : -1;
+      toolBrowserPanel.hidden = showAgent;
+      agentPanel.hidden = !showAgent;
+      connectionStatus.hidden = showAgent;
+      if (showAgent && agentEndpoint.value.includes('YOUR_APIGEE_HOSTNAME')) {
+        agentEndpoint.value = endpoint.value;
+      }
+    }
+
+    function handleTabKeydown(event) {
+      let nextTab = null;
+      if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+        nextTab = event.currentTarget === toolsTab ? agentTab : toolsTab;
+      } else if (event.key === 'Home') {
+        nextTab = toolsTab;
+      } else if (event.key === 'End') {
+        nextTab = agentTab;
+      }
+      if (!nextTab) return;
+      event.preventDefault();
+      selectTab(nextTab);
+      nextTab.focus();
+    }
+
+    function showAgentMessage(text, isError = false) {
+      agentMessage.hidden = !text;
+      agentMessage.textContent = text || '';
+      agentMessage.className = `message${isError ? ' error' : ''}`;
     }
 
     function parseMcpResponse(text, contentType) {
@@ -422,6 +582,139 @@
       }));
     }
 
+    function appendAgentTrace(container, event) {
+      const item = document.createElement('article');
+      item.className = `trace-item ${event.type}`;
+      item.dataset.step = String(container.children.length + 1);
+      const title = document.createElement('p');
+      title.className = 'trace-title';
+      const summary = document.createElement('p');
+      summary.className = 'trace-summary';
+      let detailData = null;
+
+      if (event.type === 'request') {
+        title.textContent = `MCP request · ${event.method}`;
+        summary.textContent = 'The client sends a JSON-RPC message to the Apigee MCP endpoint.';
+        detailData = { headers: event.headers, body: event.payload };
+      } else if (event.type === 'response') {
+        title.textContent = `MCP response · ${event.method}`;
+        summary.textContent = `Apigee returned HTTP ${event.status}.`;
+        detailData = event.data;
+      } else if (event.type === 'decision') {
+        title.textContent = `Agent decision · ${event.tool}`;
+        summary.textContent = event.reason;
+        detailData = { selectedTool: event.tool, arguments: event.arguments };
+      } else if (event.type === 'observation') {
+        title.textContent = `Agent observation · ${event.tool}`;
+        summary.textContent = event.summary;
+        detailData = event.result;
+      } else if (event.type === 'error') {
+        title.textContent = 'Simulation stopped';
+        summary.textContent = event.message;
+      } else {
+        title.textContent = event.title || 'Simulation update';
+        summary.textContent = event.summary || '';
+        detailData = event.data || null;
+      }
+
+      item.append(title, summary);
+      if (detailData !== null && detailData !== undefined) {
+        const details = document.createElement('details');
+        const detailsSummary = document.createElement('summary');
+        detailsSummary.textContent = 'Behind the scenes';
+        const raw = document.createElement('pre');
+        raw.textContent = JSON.stringify(detailData, null, 2);
+        details.append(detailsSummary, raw);
+        item.append(details);
+      }
+      container.append(item);
+    }
+
+    function renderAccessSummary(target, access, tools, capabilities) {
+      const heading = document.createElement('strong');
+      heading.textContent = `${access.label} · ${tools.length} tool${tools.length === 1 ? '' : 's'} discovered`;
+      const explanation = document.createTextNode(access.explanation);
+      const notification = document.createElement('div');
+      notification.textContent = capabilities?.tools?.listChanged
+        ? 'Server advertises tool-list change notifications.'
+        : 'Server does not advertise tool-list change notifications.';
+      notification.style.marginTop = '5px';
+      target.replaceChildren(heading, explanation, notification);
+    }
+
+    function updateLaneState(target, text, kind = '') {
+      target.textContent = text;
+      target.className = `lane-state ${kind}`.trim();
+    }
+
+    async function runAgentLane({ key, trace, summary, state }) {
+      trace.replaceChildren();
+      summary.textContent = 'Initializing MCP and discovering entitled tools…';
+      updateLaneState(state, 'Running', 'running');
+      const client = AgentSimulator.createClient({
+        endpoint: agentEndpoint.value.trim(),
+        apiKey: key,
+        onTrace: event => appendAgentTrace(trace, event)
+      });
+
+      try {
+        const connected = await client.connectAndList();
+        const access = AgentSimulator.describeAccess(connected.tools);
+        renderAccessSummary(summary, access, connected.tools, connected.capabilities);
+        appendAgentTrace(trace, {
+          type: 'system',
+          title: 'Entitlements discovered',
+          summary: `The agent can only plan with the ${connected.tools.length} tools returned by tools/list.`,
+          data: { availableTools: connected.tools.map(tool => tool.name), missingCapabilities: access.missing }
+        });
+        const plan = AgentSimulator.planScenario(connected.tools, 'payment-implementation');
+        if (!plan.length) throw new Error('None of the tools needed for this scenario are available.');
+        const results = await AgentSimulator.runPlan(client, plan, event => appendAgentTrace(trace, event));
+        appendAgentTrace(trace, {
+          type: 'system',
+          title: 'Agent answer assembled',
+          summary: AgentSimulator.summarizeOutcome(access, results),
+          data: { evidenceUsed: results.map(item => item.tool) }
+        });
+        updateLaneState(state, 'Complete', 'complete');
+        return true;
+      } catch (error) {
+        appendAgentTrace(trace, { type: 'error', message: error.message });
+        summary.textContent = 'This profile could not complete the simulation.';
+        updateLaneState(state, 'Failed', 'error');
+        return false;
+      }
+    }
+
+    async function runComparison() {
+      const target = agentEndpoint.value.trim();
+      if (!target || !fullAccessKey.value.trim() || !restrictedAccessKey.value.trim()) {
+        showAgentMessage('Enter the MCP endpoint and both API keys before running the comparison.', true);
+        return;
+      }
+      showAgentMessage('Running both agents against the same MCP endpoint…');
+      runAgentComparison.disabled = true;
+      const outcomes = await Promise.all([
+        runAgentLane({
+          key: fullAccessKey.value.trim(),
+          trace: fullAgentTrace,
+          summary: fullAccessSummary,
+          state: fullAgentState
+        }),
+        runAgentLane({
+          key: restrictedAccessKey.value.trim(),
+          trace: restrictedAgentTrace,
+          summary: restrictedAccessSummary,
+          state: restrictedAgentState
+        })
+      ]);
+      const completed = outcomes.filter(Boolean).length;
+      showAgentMessage(completed === 2
+        ? 'Comparison complete. Expand “Behind the scenes” on any step to inspect the protocol exchange.'
+        : `${completed} of 2 agents completed. Inspect the failed lane for details.`, completed !== 2);
+      runAgentComparison.disabled = false;
+    }
+
     async function connectAndList() {
       if (!apiKey.value.trim()) {
         setStatus('error', 'API key required');
@@ -458,6 +751,11 @@
       }
     }
 
+    toolsTab.addEventListener('click', () => selectTab(toolsTab));
+    agentTab.addEventListener('click', () => selectTab(agentTab));
+    toolsTab.addEventListener('keydown', handleTabKeydown);
+    agentTab.addEventListener('keydown', handleTabKeydown);
+    runAgentComparison.addEventListener('click', runComparison);
     connectButton.addEventListener('click', connectAndList);
     endpoint.addEventListener('keydown', event => {
       if (event.key === 'Enter') connectAndList();

@@ -28,6 +28,7 @@ The repository includes two mock REST APIs, their ordinary Apigee reverse proxie
 - A static browser client can exercise `initialize`, `tools/list`, and `tools/call` without storing a credential.
 - Apigee can simulate a documentation service that searches content, returns complete Markdown with a textual sequence diagram, and returns an OpenAPI YAML document.
 - The browser can safely render the Markdown and sequence flow, summarize OpenAPI operations, and retain the raw MCP response for inspection.
+- A deterministic agent simulation compares full and restricted API-product access while exposing initialization, discovery, planning, tool calls, and observations.
 
 ## Repository layout
 
@@ -38,6 +39,7 @@ apigee/
   documentation-search-mock/  Ordinary source reverse-proxy bundle
   mcp-discovery-proxy/         Generated MCP proxy bundle for inspection
 app/
+  agent-simulator.js           Entitlement-aware deterministic agent and MCP trace client
   content-renderer.js          Dependency-free Markdown, sequence, and OpenAPI renderer
   mcp-tool-browser.html        Static MCP lifecycle client
 samples/
@@ -115,7 +117,9 @@ cd build/configured
 python3 -m http.server 8080
 ```
 
-Open <http://localhost:8080/app/mcp-tool-browser.html>. Enter an API key created in your Apigee organisation. The key remains in browser memory and is sent only in the `x-api-key` header. Calls to `documentation_section_get` render the returned Markdown and sequence flow; calls to `openapi_spec_get` render an operation summary. Both retain a **Raw response** view.
+Open <http://localhost:8080/app/mcp-tool-browser.html>. The **Tool browser** tab accepts one API key and exposes the generated schemas and direct tool calls. The **Agent simulation** tab accepts full-access and documentation-only keys, gives both profiles the same payment-implementation goal, and shows how each profile discovers tools and adapts its plan. Every protocol request and response is available under **Behind the scenes** with API-key values redacted.
+
+The simulation is deterministic and does not run an LLM. Its purpose is to make MCP discovery, API-product filtering, tool selection, and evidence gathering visible. Keys remain in browser memory and are sent only in the `x-api-key` header. Calls to `documentation_section_get` render the returned Markdown and sequence flow; calls to `openapi_spec_get` render an operation summary. Direct tool calls retain a **Raw response** view.
 
 Never commit credentials, place them in URLs, or embed them in the static file.
 
